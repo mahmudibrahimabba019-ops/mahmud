@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Halari House of Seasoning</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        body {
+            background-color: #F5E6D3;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+        }
+        
+        .checkout-form {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+
+        /* products grid removed for checkout page */
+        
+        .order-summary {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            height: fit-content;
+        }
+        
+        h2 {
+            color: #4A2C1A;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #4A2C1A;
+            padding-bottom: 10px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #4A2C1A;
+            font-weight: 500;
+        }
+        
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #4A2C1A;
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        button {
+            background-color: #4A2C1A;
+            color: white;
+            padding: 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        button:hover {
+            background-color: #6B3F2A;
+        }
+        
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #F5E6D3;
+        }
+        
+        .cart-item:last-child {
+            border-bottom: none;
+        }
+        
+        .item-name {
+            font-weight: 500;
+        }
+        
+        .item-price {
+            color: #4A2C1A;
+            font-weight: bold;
+        }
+        
+        .total-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            font-weight: bold;
+        }
+        
+        .grand-total {
+            font-size: 18px;
+            color: #4A2C1A;
+            border-top: 2px solid #4A2C1A;
+            padding-top: 10px;
+            margin-top: 10px;
+        }
+        
+        .message {
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+        }
+        
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+            display: block;
+        }
+        
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            display: block;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #4A2C1A;
+        }
+        
+        .order-number {
+            background: #F5E6D3;
+            padding: 15px;
+            border-radius: 5px;
+            text-align: center;
+            margin: 20px 0;
+        }
+        
+        .order-number h3 {
+            color: #4A2C1A;
+            margin-bottom: 10px;
+        }
+        
+        .order-number .number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4A2C1A;
+        }
+    </style>
+    <!-- Fix CSP to allow Paystack -->
+    <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob: https://js.paystack.co; style-src * 'unsafe-inline';">
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <script>
+        // Ensure CSP meta remains in the document so Paystack can load
+        
+        // Check if Paystack loaded
+        window.addEventListener('load', function() {
+            console.log('Checking Paystack...');
+            if (typeof PaystackPop === 'undefined') {
+                console.error('PaystackPop is undefined - script not loaded');
+                alert('Payment system not loaded. Please check your internet connection and refresh the page.');
+            } else {
+                console.log('PaystackPop loaded successfully');
+            }
+        });
+        
+        // Test Paystack function
+        function testPaystack() {
+            if (typeof PaystackPop === 'undefined') {
+                alert('Paystack not loaded. Check CSP or internet.');
+                return;
+            }
+            var handler = PaystackPop.setup({
+                key: 'pk_test_abd78fdac041a5a82085a0aa0b504171b5a6f7d5',
+                email: 'test@example.com',
+                amount: 5000,
+                currency: 'NGN',
+                callback: function(r) { alert('Success!'); },
+                onClose: function() { alert('Closed'); }
+            });
+            handler.openIframe();
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div class="checkout-form">
+          <h2>Checkout</h2>
+          <div id="message" class="message"></div>
+          <div id="paymentResult" style="display:none; margin-bottom:16px;"></div>
+          <form id="checkoutForm">
+                <div class="form-group">
+                    <label>Email *</label>
+                    <input type="email" id="email" required placeholder="customer@example.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Phone Number *</label>
+                    <input type="tel" id="phone" required placeholder="08012345678">
+                </div>
+                
+                <div class="row">
+                    <div class="form-group">
+                        <label>First Name *</label>
+                        <input type="text" id="firstName" required placeholder="Aisha">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Last Name *</label>
+                        <input type="text" id="lastName" required placeholder="Mohammed">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Delivery Address *</label>
+                    <textarea id="address" rows="2" required placeholder="No 15, Ahmadu Bello Way"></textarea>
+                </div>
+                
+                <div class="row">
+                    <div class="form-group">
+                        <label>City *</label>
+                        <input type="text" id="city" required placeholder="Kaduna">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>State *</label>
+                        <input type="text" id="state" required placeholder="Kaduna">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Delivery Notes (Optional)</label>
+                    <textarea id="note" rows="2" placeholder="Call before delivery, leave with neighbor, etc."></textarea>
+                </div>
+                
+                <button type="button" id="submitBtn" onclick="payWithPaystack()">Pay Now</button>
+            </form>
+        </div>
+        
+        <!-- Order Summary -->
+        <div class="order-summary">
+            <h2>Your Order</h2>
+            <div id="cartItems">
+                <!-- Cart items will be loaded here -->
+                <div class="loading">Loading cart...</div>
+            </div>
+            
+            <div class="total-row">
+                <span>Subtotal:</span>
+                <span id="subtotal">₦0</span>
+            </div>
+            
+            <div class="total-row">
+                <span>Delivery Fee:</span>
+                <span id="deliveryFee">₦3,000</span>
+              </div>
+            
+            <div class="total-row grand-total">
+                <span>Total:</span>
+                <span id="total">₦0</span>
+            </div>
+        </div>
+    </div>
+
+    
+    <script>
+    const API_URL = 'http://127.0.0.1:8001';
+    
+    // Get cart from localStorage
+    function getCartFromLocalStorage() {
+        // Try multiple cart keys that might be used
+        const cartKeys = ['cart', 'halari_cart', 'spices_cart'];
+        
+        for (const key of cartKeys) {
+            const rawCart = localStorage.getItem(key);
+            if (rawCart) {
+                console.log(`Found cart with key: ${key}`);
+                try {
+                    const cart = JSON.parse(rawCart);
+                    console.log(`Cart structure from ${key}:`, cart);
+                    
+                    // Handle different cart structures
+                    if (Array.isArray(cart)) {
+                        // Cart is an array of items - convert to object format
+                        const subtotal = cart.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+                        return {
+                            items: cart,
+                            subtotal: subtotal,
+                            delivery_fee: 3000,
+                            total: subtotal + 3000
+                        };
+                    } else if (cart.items && Array.isArray(cart.items)) {
+                        // Cart is already in object format
+                        return cart;
+                    }
+                } catch (e) {
+                    console.error(`Error parsing cart from ${key}:`, e);
+                }
+            }
+        }
+        
+        console.log('No valid cart found, returning empty cart');
+        return { items: [], subtotal: 0, delivery_fee: 3000, total: 3000 };
+    }
+    
+    // Display order summary on page load
+    function displayOrderSummary() {
+        const cart = getCartFromLocalStorage();
+        
+        const summaryDiv = document.getElementById('cartItems');
+        if (!summaryDiv) {
+            console.log('Summary div not found');
+            return;
+        }
+        
+        // Check if cart has items array
+        if (!cart.items || cart.items.length === 0) {
+            console.log('Cart has no items');
+            summaryDiv.innerHTML = '<p class="loading">Your cart is empty</p>';
+            return;
+        }
+        
+        let itemsHtml = '';
+        cart.items.forEach((item, index) => {
+            console.log(`Item ${index}:`, item);
+            const itemName = item.product_name || item.name || 'Unknown Product';
+            const itemQuantity = item.quantity || 1;
+            const itemSubtotal = item.subtotal || (item.price * itemQuantity) || 0;
+            
+            itemsHtml += `
+                <div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #F5E6D3;">
+                    <span>${itemQuantity}x ${itemName}</span>
+                    <span>₦${itemSubtotal.toLocaleString()}</span>
+                </div>
+            `;
+        });
+        
+        summaryDiv.innerHTML = `
+            <h3>Order Summary</h3>
+            ${itemsHtml}
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; margin-top: 10px;">
+                <strong>Subtotal:</strong>
+                <strong>₦${cart.subtotal.toLocaleString()}</strong>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0;">
+                <span>Delivery Fee:</span>
+                <span>₦${cart.delivery_fee.toLocaleString()}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; padding: 8px 0; border-top: 2px solid #4A2C1A; margin-top: 10px; font-size: 18px;">
+                <strong>Total:</strong>
+                <strong>₦${cart.total.toLocaleString()}</strong>
+            </div>
+        `;
+    }
+    
+    // Validate form
+    function validateCheckoutForm() {
+        const required = ['email', 'phone', 'firstName', 'lastName', 'address', 'city', 'state'];
+        for (const id of required) {
+            const el = document.getElementById(id);
+            if (!el || !el.value.trim()) {
+                return `${id.replace(/([A-Z])/g, ' $1').toLowerCase()} is required`;
+            }
+        }
+        
+        const email = document.getElementById('email').value.trim();
+        if (!/^\S+@\S+\.\S+$/.test(email)) {
+            return 'Please enter a valid email';
+        }
+        
+        return null;
+    }
+    
+    // Main payment function
+    async function payWithPaystack() {
+        console.log('[pay] started');
+        
+        // Check if Paystack is available
+        if (typeof PaystackPop === 'undefined') {
+            console.error('PaystackPop is not available');
+            alert('Payment system not loaded. Please refresh the page and try again.');
+            return;
+        }
+        
+        const validationError = validateCheckoutForm();
+        if (validationError) {
+            console.log('[pay] validation error:', validationError);
+            alert(validationError);
+            return;
+        }
+        
+        const cart = getCartFromLocalStorage();
+        console.log('[pay] cart data:', cart);
+        
+        if (!cart.items || cart.items.length === 0) {
+            console.log('[pay] cart is empty');
+            alert('Your cart is empty');
+            return;
+        }
+        
+        const submitBtn = document.getElementById('submitBtn');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Processing...';
+        }
+        
+        try {
+            // Get customer email from form
+            const customerEmail = document.getElementById('email').value.trim();
+            console.log('[pay] customer email:', customerEmail);
+            
+            // Calculate total amount from cart
+            const totalAmount = cart.total || 0;
+            const amountInKobo = Math.round(totalAmount * 100);
+            console.log('[pay] total amount:', totalAmount, 'kobo:', amountInKobo);
+            
+            // Set up Paystack handler exactly like test button
+            console.log('[pay] setting up Paystack handler...');
+            const handler = PaystackPop.setup({
+                key: 'pk_test_abd78fdac041a5a82085a0aa0b504171b5a6f7d5',
+                email: customerEmail,
+                amount: amountInKobo,
+                currency: 'NGN',
+                channels: ['card'],
+                callback: function(response) {
+                    console.log('[paystack] callback received:', response);
+                    if (response && response.reference) {
+                        console.log('[pay] payment success - reference:', response.reference);
+                        // Create customer and order after successful payment
+                        createCustomerAndOrder(response.reference);
+                    } else {
+                        console.warn('[pay] payment completed but no reference returned');
+                        alert('Payment completed but no reference returned. Contact support.');
+                        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Pay Now'; }
+                    }
+                },
+                onClose: function() {
+                    console.log('[pay] payment closed');
+                    alert('Payment cancelled');
+                    if (submitBtn) {
+                        submitBtn.disabled = false;
+                        submitBtn.textContent = 'Pay Now';
+                    }
+                }
+            });
+            
+            console.log('[pay] opening Paystack iframe...');
+            handler.openIframe();
+            
+        } catch (error) {
+            console.error('[pay] error:', error);
+            const msgEl = document.getElementById('message');
+            if (msgEl) { 
+                msgEl.className = 'message error'; 
+                msgEl.textContent = 'Payment error: ' + (error.message || error); 
+                msgEl.style.display = 'block'; 
+            }
+            if (submitBtn) { 
+                submitBtn.disabled = false; 
+                submitBtn.textContent = 'Pay Now'; 
+            }
+        }
+    }
+    
+    // Create customer and order after successful payment
+    async function createCustomerAndOrder(paymentReference) {
+        try {
+            console.log('[createCustomerAndOrder] STARTED with reference:', paymentReference);
+            console.log('[pay] creating customer after payment...');
+            const customerData = {
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                first_name: document.getElementById('firstName').value.trim(),
+                last_name: document.getElementById('lastName').value.trim(),
+                address: document.getElementById('address').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                state: document.getElementById('state').value.trim(),
+                password: ""
+            };
+            
+            const customerResponse = await fetch(`${API_URL}/customers/guest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(customerData)
+            });
+
+            if (!customerResponse.ok) throw new Error('Customer creation failed');
+            const customerResult = await customerResponse.json();
+            const customerId = customerResult.customer_id;
+            
+            console.log('[pay] creating order after payment...');
+            const cart = getCartFromLocalStorage();
+            const orderData = {
+                customer_id: customerId,
+                items: cart.items.map(item => ({
+                    product_id: item.product_id || item.id,
+                    product_name: item.product_name || item.name,
+                    quantity: item.quantity || 1,
+                    price_at_time: item.price,
+                    subtotal: item.subtotal
+                })),
+                subtotal: cart.subtotal,
+                delivery_fee: cart.delivery_fee,
+                total_amount: cart.total,
+                delivery_address: document.getElementById('address').value.trim(),
+                delivery_phone: document.getElementById('phone').value.trim(),
+                delivery_city: document.getElementById('city').value.trim(),
+                delivery_state: document.getElementById('state').value.trim(),
+                delivery_note: document.getElementById('note')?.value.trim() || "",
+                payment_reference: paymentReference
+            };
+
+            console.log('[orders/create] sending payload:', JSON.stringify(orderData));
+
+            const orderResponse = await fetch(`${API_URL}/orders/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            });
+            
+            if (!orderResponse.ok) throw new Error('Order creation failed');
+            const orderResult = await orderResponse.json();
+            console.log('[createCustomerAndOrder] order created:', orderResult);
+            console.log('[createCustomerAndOrder] order created, calling verifyPayment');
+
+            // Verify the payment and update order status (pass Paystack transaction reference)
+            await verifyPayment(paymentReference, orderResult.order_id);
+            
+        } catch (error) {
+            console.error('[pay] error creating customer/order:', error);
+            alert('Error processing order: ' + error.message);
+        }
+    }
+    
+    // Verify payment
+    async function verifyPayment(reference, orderId) {
+        console.log('[verifyPayment] ENTERED with reference:', reference);
+        console.log('[verify] STARTED - reference:', reference);
+        console.log('[verify] API_URL:', API_URL);
+
+        try {
+            const url = `${API_URL}/api/verify-payment/${reference}`;
+            console.log('[verify] fetching:', url);
+
+            const response = await fetch(url);
+            console.log('[verify] response status:', response.status);
+
+            if (!response.ok) {
+                console.error('[verify] non-OK response from verify endpoint');
+                throw new Error('Payment verification endpoint returned non-OK status');
+            }
+
+            const data = await response.json();
+            console.log('[verify] response data:', data);
+
+            if (data && data.data && data.data.status === 'success') {
+                console.log('[verify] payment successful! updating order status...');
+
+                // Update order status to processing/paid
+                const updateUrl = `${API_URL}/orders/${orderId}/status?status=processing&payment_status=paid`;
+                console.log('[verify] PUT', updateUrl);
+                await fetch(updateUrl, { method: 'PUT' });
+
+                // Prepare order data for success page
+                const cart = getCartFromLocalStorage();
+                const orderData = {
+                    order_number: orderId,
+                    customer_name: document.getElementById('firstName').value.trim() + ' ' + document.getElementById('lastName').value.trim(),
+                    customer_email: document.getElementById('email').value.trim(),
+                    customer_phone: document.getElementById('phone').value.trim(),
+                    delivery_address: document.getElementById('address').value.trim() + ', ' + document.getElementById('city').value.trim() + ', ' + document.getElementById('state').value.trim(),
+                    items: cart.items.map(item => ({
+                        product_name: item.product_name || item.name,
+                        quantity: item.quantity || 1,
+                        price: item.price,
+                        subtotal: item.subtotal
+                    })),
+                    subtotal: cart.subtotal,
+                    delivery_fee: cart.delivery_fee,
+                    total: cart.total
+                };
+
+                // Save order data locally (for debugging) and clear carts
+                localStorage.setItem('lastOrder', JSON.stringify(orderData));
+                localStorage.setItem('lastOrderRef', reference || '');
+                localStorage.removeItem('cart');
+                localStorage.removeItem('halari_cart');
+                localStorage.removeItem('spices_cart');
+
+                // Show payment result on the same page instead of redirecting
+                showPaymentResult(orderData, reference);
+            } else {
+                console.log('[verify] payment failed or status not success', data);
+                alert('Payment verification failed. Please contact support.');
+            }
+        } catch (error) {
+            console.error('[verify] error:', error);
+            alert('Payment verification failed. Please contact support.');
+        }
+    }
+
+    // Render payment result on the same page
+    function showPaymentResult(orderData, reference) {
+        const resultDiv = document.getElementById('paymentResult');
+        const form = document.getElementById('checkoutForm');
+        const submitBtn = document.getElementById('submitBtn');
+
+        // Build items HTML
+        let itemsHtml = '';
+        if (orderData.items && orderData.items.length) {
+            orderData.items.forEach(item => {
+                const qty = item.quantity || 1;
+                const name = item.product_name || item.name || 'Item';
+                const price = item.subtotal || (item.price ? item.price * qty : 0);
+                itemsHtml += `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #F5E6D3"><div>${qty}× ${name}</div><div>₦${Number(price).toLocaleString()}</div></div>`;
+            });
+        }
+
+        const subtotal = orderData.subtotal || 0;
+        const deliveryFee = orderData.delivery_fee || 3000;
+        const total = orderData.total || (subtotal + deliveryFee);
+
+        // Success box HTML
+        resultDiv.innerHTML = `
+            <div style="background:#E6F7EB;border:1px solid #C6EFD0;padding:16px;border-radius:8px;color:#1b5e20;margin-bottom:12px">
+                <strong>Payment Successful! Thank you for your order.</strong>
+                <div style="margin-top:8px">Order #: <strong>${orderData.order_number || reference || ''}</strong></div>
+                <div>Customer: <strong>${orderData.customer_name || ''}</strong></div>
+            </div>
+            <div style="background:#fff;padding:12px;border-radius:8px;border:1px solid #E8DDCF">
+                <div style="font-weight:700;margin-bottom:8px">Items Purchased</div>
+                ${itemsHtml}
+                <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid #F5E6D3;margin-top:8px">
+                    <div>Subtotal</div><div>₦${Number(subtotal).toLocaleString()}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding-top:8px">
+                    <div>Delivery Fee</div><div>₦${Number(deliveryFee).toLocaleString()}</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid #4A2C1A;margin-top:10px;font-weight:700">
+                    <div>Total Paid</div><div>₦${Number(total).toLocaleString()}</div>
+                </div>
+                <div style="margin-top:12px">
+                    <div style="font-weight:700">Delivery Address</div>
+                    <div style="margin-top:6px;color:#444">${orderData.delivery_address || ''}</div>
+                </div>
+            </div>
+        `;
+
+        // Show result, hide form
+        resultDiv.style.display = 'block';
+        if (form) form.style.display = 'none';
+
+        // Disable the Pay Now button and replace action with Continue Shopping
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Continue Shopping';
+            submitBtn.onclick = function(){ window.location.href = 'catalog.html'; };
+            submitBtn.style.backgroundColor = '#4A2C1A';
+            submitBtn.style.color = '#fff';
+        }
+    }
+    
+    // Load order summary when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        displayOrderSummary();
+        
+        // Check if cart is empty
+        const cart = getCartFromLocalStorage();
+        if (!cart.items || cart.items.length === 0) {
+            alert('Your cart is empty. Redirecting to products page.');
+            window.location.href = 'products.html';
+        }
+    });
+    </script>
+</html>

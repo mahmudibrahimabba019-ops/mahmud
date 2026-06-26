@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shopping Cart - Halari Seasonings</title>
+    <link rel="stylesheet" href="styles.css?v=2">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo"><img src="halari.jpg" alt="" class="logo-img"></a>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link">Home</a></li>
+                <li><a href="catalog.html" class="nav-link">Shop</a></li>
+                <li><a href="about.html" class="nav-link">About Us</a></li>
+                <li><a href="how-to-order.html" class="nav-link">How to Order</a></li>
+                <li><a href="faq.html" class="nav-link">FAQ</a></li>
+                <li><a href="cart.html" class="nav-link cart-link active">🛒 Cart <span id="cart-count">0</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Page Title -->
+    <section class="page-title">
+        <h1>Your Shopping Cart</h1>
+    </section>
+
+    <!-- Cart Content -->
+    <section class="cart-section">
+        <div class="container">
+            <div id="empty-cart-msg" class="empty-cart">
+                <p>Your cart is empty</p>
+                <a href="catalog.html" class="btn btn-primary">Continue Shopping</a>
+            </div>
+
+            <div id="cart-content" style="display:none;">
+                <div class="cart-items-wrapper">
+                    <div class="cart-items" id="cart-items">
+                        <!-- Populated by JavaScript -->
+                    </div>
+
+                    <div class="cart-summary">
+                        <h3>Order Summary</h3>
+                        <div class="summary-row">
+                            <span>Subtotal:</span>
+                            <span>₦<span id="subtotal">0</span></span>
+                        </div>
+                        <div class="summary-row">
+                            <span>Delivery Fee:</span>
+                            <span>₦<span id="deliveryFee">3,000</span></span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>Total:</span>
+                            <span>₦<span id="total">0</span></span>
+                        </div>
+
+                        <div class="checkout-section">
+                            <h3>Finalize Your Order</h3>
+                            <p class="checkout-info">Proceed to checkout to complete your order online.</p>
+                            <button class="btn btn-secondary btn-full" onclick="clearCart()">Clear Cart</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="continue-shopping">
+                    <a href="catalog.html" class="btn btn-outline">← Continue Shopping</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2026 Halari Seasonings. All rights reserved.</p>
+            <p class="footer-subtext">Phone: +2348182138225 | Email: halari.seasonings@gmail.com</p>
+            <p class="footer-subtext">Premium • Authentic • Vibrant Flavors</p>
+        </div>
+    </footer>
+
+    <script src="products.js"></script>
+    <script src="app.js"></script>
+        <script>
+        (function(){
+            function hasCartItems(){
+                const raw = localStorage.getItem('spices_cart') || localStorage.getItem('halari_cart') || localStorage.getItem('cart');
+                if(!raw) return false;
+                try{ const parsed = JSON.parse(raw); if(Array.isArray(parsed)) return parsed.length>0; if(parsed && parsed.items) return parsed.items.length>0; }catch(e){return false}
+                return false;
+            }
+            function ensureHalariCart(){ const keys=['spices_cart','halari_cart','cart']; for(const k of keys){ const v=localStorage.getItem(k); if(v){ localStorage.setItem('halari_cart', v); return true; } } return false; }
+            function createProceedButton(){
+                const btn = document.createElement('button'); btn.className='btn btn-primary btn-full'; btn.id='proceed-to-checkout'; btn.textContent='Proceed to Checkout'; btn.style.margin='10px 0'; btn.disabled = !hasCartItems();
+                btn.addEventListener('click', ()=>{ if(!hasCartItems()){ alert('Your cart is empty.'); return;} ensureHalariCart(); setTimeout(()=> window.location.href='checkout.html', 80); });
+                setInterval(()=>{ btn.disabled = !hasCartItems(); }, 800);
+                return btn;
+            }
+            document.addEventListener('DOMContentLoaded', ()=>{
+                const section = document.querySelector('.checkout-section') || document.querySelector('.cart-summary') || document.querySelector('.container');
+                if(!section) return; const proceed = createProceedButton(); const firstChild = section.firstElementChild; if(firstChild) section.insertBefore(proceed, firstChild); else section.appendChild(proceed);
+            });
+        })();
+        </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Product Details - Halari Seasonings</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    :root{ --cream:#F5E6D3; --brown:#4A2C1A; }
+    body{ background:var(--cream); color:var(--brown); font-family:Inter,Arial,Helvetica,sans-serif; margin:0; }
+    .container{ max-width:1100px; margin:28px auto; padding:18px; }
+    .back-btn{ display:inline-block; margin-bottom:12px; color:white; background:var(--brown); padding:8px 12px; text-decoration:none; border-radius:6px; }
+    .product-wrap{ display:flex; gap:28px; background:white; border-radius:10px; overflow:hidden; box-shadow:0 6px 20px rgba(0,0,0,0.06); }
+    .image-col{ flex:1 1 50%; min-width:260px; background:#fff; display:flex; align-items:center; justify-content:center; padding:18px; }
+    .image-col img{ max-width:100%; height:auto; border-radius:8px; }
+    .info-col{ flex:1 1 50%; padding:22px; }
+    h1{ margin:0 0 8px 0; font-size:24px; color:var(--brown); }
+    .price{ font-weight:700; font-size:20px; color:var(--brown); margin-top:6px; }
+    .desc, .howto{ margin-top:12px; line-height:1.45; color:#2f2f2f; }
+    .sizes{ margin-top:14px; }
+    .size-option{ display:flex; align-items:center; gap:10px; margin:8px 0; }
+    .add-row{ margin-top:18px; display:flex; gap:12px; align-items:center; }
+    .btn-primary{ background:var(--brown); color:white; border:none; padding:10px 14px; border-radius:8px; cursor:pointer; }
+    .qty{ width:68px; padding:8px; border-radius:6px; border:1px solid #ccc; }
+    @media (max-width:800px){ .product-wrap{ flex-direction:column; } .image-col, .info-col{ padding:14px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <a class="back-btn" href="catalog.html">← Back to Products</a>
+
+    <div id="product" class="product-wrap" aria-live="polite">
+      <div class="image-col">
+        <img id="product-image" src="halari.jpg" alt="Product image">
+      </div>
+      <div class="info-col">
+        <h1 id="product-name">Loading...</h1>
+        <div id="product-price" class="price"></div>
+        <div id="product-description" class="desc"></div>
+        <div id="product-howto" class="howto"></div>
+
+        <div class="sizes" id="sizes-container"></div>
+
+        <div class="add-row">
+          <input id="quantity" class="qty" type="number" min="1" value="1" aria-label="Quantity">
+          <button id="add-to-cart" class="btn-primary">Add to Cart</button>
+        </div>
+
+        <div id="message" role="status" style="margin-top:12px;color:green;display:none"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import PRODUCT_DETAILS from './product-data.js';
+
+    const API_BASE = 'http://127.0.0.1:8001';
+
+    function getQueryParam(name){ const params = new URLSearchParams(window.location.search); return params.get(name); }
+
+    function imageUrlFor(filename){ if(!filename) return './halari.jpg'; return API_BASE + '/images/' + encodeURIComponent(filename); }
+
+    function findPreferredKey(){ if(localStorage.getItem('halari_cart')) return 'halari_cart'; if(localStorage.getItem('spices_cart')) return 'spices_cart'; return 'halari_cart'; }
+
+    function readCart(key){ try{ const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : []; }catch(e){return []} }
+
+    function writeCart(key, items){ try{ localStorage.setItem(key, JSON.stringify(items)); }catch(e){} }
+
+    function addItemToCarts(item){
+      // Normalize item shape to include both 'name' and 'product_name' and ensure ids/prices
+      try { item.product_id = item.product_id || item.id || item.variantId || item.variant || null; } catch(e) {}
+      try { item.name = item.name || item.product_name || item.title || `Item ${item.product_id || ''}`; } catch(e) {}
+      try { item.product_name = item.product_name || item.name; } catch(e) {}
+      try { item.price = Number(item.price || item.price_at_time || 0); } catch(e) { item.price = 0; }
+      try { item.subtotal = Number(item.subtotal || (item.price * (item.quantity || 1)) || 0); } catch(e) { item.subtotal = item.price * (item.quantity || 1); }
+
+      // Prefer using global cart API if available
+      try{
+        if(window.cart && typeof window.cart.addItem === 'function'){
+          window.cart.addItem({ id: item.product_id || item.id, name: item.name, price: item.price, image: (window.API_PRODUCT_IMAGE||''), variant: item.variant || '' }, item.quantity);
+          return;
+        }
+      }catch(e){/* fallback below */}
+
+      const keys = ['halari_cart','spices_cart','cart'];
+      keys.forEach(k=>{
+        let arr = readCart(k) || [];
+        // normalize if we got a cart object with items
+        if (!Array.isArray(arr) && arr && Array.isArray(arr.items)) arr = arr.items;
+        if (!Array.isArray(arr)) arr = [];
+
+        const existing = arr.find(it => String(it.id) === String(item.product_id) && it.variant === item.variant);
+        if(existing){ existing.quantity = (existing.quantity||0) + (item.quantity||1); existing.subtotal = existing.quantity * existing.price; }
+        else { arr.push({ id: item.product_id || item.id, product_name: item.product_name, name: item.name, price: item.price, quantity: item.quantity || 1, subtotal: item.subtotal, variant: item.variant || '' }); }
+
+        // For canonical 'cart' key, store a unified cart object
+        if (k === 'cart') {
+          const subtotal = arr.reduce((s, it) => s + (Number(it.subtotal || 0)), 0);
+          const cartObj = { items: arr, subtotal: subtotal, delivery_fee: 3000, total: subtotal + 3000 };
+          writeCart(k, cartObj);
+        } else {
+          writeCart(k, arr);
+        }
+      });
+    }
+
+    async function loadProduct(productId){
+      try{
+        const res = await fetch(`${API_BASE}/products/${productId}`);
+        if(!res.ok) throw new Error('Product fetch failed');
+        return await res.json();
+      }catch(e){ return null; }
+    }
+
+    function formatPrice(n){ return '₦' + Number(n).toLocaleString(); }
+
+    (async function init(){
+      const idParam = getQueryParam('id');
+      if(!idParam){ window.location.href = 'catalog.html'; return; }
+      const productId = Number(idParam);
+
+      const detailsFromMap = PRODUCT_DETAILS[productId] || PRODUCT_DETAILS[String(productId)];
+      let apiProduct = await loadProduct(productId);
+      if (!apiProduct) {
+        // fallback minimal product using local details
+        const fallbackPrice = (detailsFromMap && detailsFromMap.sizes && detailsFromMap.sizes[0] && detailsFromMap.sizes[0].price) ? detailsFromMap.sizes[0].price : 0;
+        apiProduct = { id: productId, name: (detailsFromMap && detailsFromMap.name) || (`Product ${productId}`), price: fallbackPrice, image: '' };
+      }
+
+      const details = detailsFromMap || { description: '', howToUse: '', sizes: [{ weight: '100g', price: apiProduct.price || 0, variantId: productId }] };
+
+      // render image and name
+      const img = document.getElementById('product-image');
+      img.src = imageUrlFor(apiProduct.image);
+      img.alt = apiProduct.name;
+      document.getElementById('product-name').textContent = apiProduct.name;
+
+      // stock handling
+      const stockQty = Number(apiProduct.stock_quantity ?? 100);
+      const messageEl = document.getElementById('message');
+      if (stockQty === 0) {
+        messageEl.style.display = 'block';
+        messageEl.style.color = '#dc3545';
+        messageEl.textContent = '❌ Out of Stock';
+        document.getElementById('add-to-cart').disabled = true;
+      } else if (stockQty > 0 && stockQty < 10) {
+        messageEl.style.display = 'block';
+        messageEl.style.color = '#fd7e14';
+        messageEl.textContent = `⚠️ Only ${stockQty} left in stock`;
+      } else {
+        messageEl.style.display = 'none';
+      }
+
+      // description + how to use
+      document.getElementById('product-description').textContent = details.description || '';
+      document.getElementById('product-howto').innerHTML = '<strong>How to use:</strong> ' + (details.howToUse || '');
+
+      // sizes
+      const sc = document.getElementById('sizes-container');
+      sc.innerHTML = '';
+
+      const sizes = Array.isArray(details.sizes) && details.sizes.length ? details.sizes : [{ weight: '100g', price: apiProduct.price || 0, variantId: productId }];
+
+      sizes.forEach((s, idx)=>{
+        const id = `size-${idx}`;
+        const row = document.createElement('div'); row.className = 'size-option';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio'; radio.name = 'size'; radio.id = id; radio.value = s.price; radio.dataset.weight = s.weight; radio.dataset.variant = s.variantId || productId;
+        if(idx===0) radio.checked = true;
+
+        const label = document.createElement('label'); label.htmlFor = id; label.textContent = `${s.weight} — ${formatPrice(s.price)}`;
+
+        row.appendChild(radio); row.appendChild(label);
+        sc.appendChild(row);
+      });
+
+      // show base price of selected
+      function updateDisplayedPrice(){ const sel = document.querySelector('input[name="size"]:checked'); if(sel) document.getElementById('product-price').textContent = formatPrice(sel.value); }
+      updateDisplayedPrice();
+      document.getElementById('sizes-container').addEventListener('change', updateDisplayedPrice);
+
+      // add to cart handling
+      document.getElementById('add-to-cart').addEventListener('click', ()=>{
+        // check stock before adding
+        const qty = Math.max(1, Number(document.getElementById('quantity').value) || 1);
+        if (stockQty === 0) { alert('Item is out of stock'); return; }
+        if (qty > stockQty) { alert(`Only ${stockQty} units available`); return; }
+        const sel = document.querySelector('input[name="size"]:checked');
+        const sel2 = document.querySelector('input[name="size"]:checked');
+        if(!sel2) return;
+        const weight = sel2.dataset.weight || '';
+        const variantId = Number(sel2.dataset.variant || productId);
+        const price = Number(sel2.value) || 0;
+
+        const item = {
+          id: variantId,
+          name: apiProduct.name + (weight ? (' — ' + weight) : ''),
+          price: price,
+          quantity: qty,
+          variant: weight
+        };
+
+        // If global Cart API exists, use it (keeps unified format)
+        try{
+          if(window.cart && typeof window.cart.addItem === 'function'){
+            window.cart.addItem({ id: item.id, name: item.name, price: item.price, image: apiProduct.image, variant: item.variant }, item.quantity);
+          } else {
+            addItemToCarts(item);
+          }
+        }catch(e){ addItemToCarts(item); }
+
+        const msg = document.getElementById('message');
+        msg.style.display = 'block'; msg.textContent = `${item.name} added to cart (${qty})`;
+        setTimeout(()=>{ msg.style.display = 'none'; }, 2200);
+
+        try{ if(window.cart && typeof window.cart.updateCartCount === 'function'){ /* cart.addItem already updated count */ } else { /* attempt to sync counts by reading unified cart */ const unified = JSON.parse(localStorage.getItem('cart')||'{}'); if(unified && Array.isArray(unified.items)){ const count = unified.items.reduce((c,i)=>c+(i.quantity||0),0); document.querySelectorAll('#cart-count').forEach(el=>el.textContent = count); } } }catch(e){}
+      });
+
+    })();
+
+  </script>
+</body>
+</html>

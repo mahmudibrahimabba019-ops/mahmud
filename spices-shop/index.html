@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HALARI - The Right House of Seasoning</title>
+    <link rel="stylesheet" href="styles.css?v=2">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Visit Our Shop section styles */
+        .visit-shop {
+            background: #fff;
+            border-radius: 12px;
+            padding: 28px;
+            margin: 40px auto;
+            max-width: 1100px;
+            box-shadow: 0 6px 24px rgba(74,44,26,0.06);
+            color: #4A2C1A;
+        }
+
+        .visit-shop h2 {
+            margin-bottom: 12px;
+            color: #4A2C1A;
+            font-size: 22px;
+            display:flex;align-items:center;gap:10px;
+        }
+
+        .visit-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 18px;
+            align-items: start;
+        }
+
+        .visit-details {
+            background: #F5E6D3;
+            padding: 18px;
+            border-radius: 10px;
+            color: #4A2C1A;
+            font-weight: 600;
+        }
+
+        .visit-row { display:flex; gap:10px; align-items:flex-start; margin-bottom:12px; }
+        .visit-row .icon { font-size:18px; width:28px }
+        .visit-row .label { color:#4A2C1A; font-weight:700 }
+        .visit-row .value { color:#4A2C1A; font-weight:600 }
+
+        .map-wrapper { width:100%; border-radius:10px; overflow:hidden; box-shadow: 0 4px 18px rgba(0,0,0,0.06); }
+        .map-wrapper iframe { width:100%; height:400px; border:0; display:block; }
+
+        @media (max-width:800px) {
+            .visit-grid { grid-template-columns: 1fr; }
+            .map-wrapper iframe { height:280px; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo"><img src="halari.jpg" alt="" class="logo-img"></a>
+            <ul class="nav-menu">
+                <li><a href="index.html" class="nav-link active">Home</a></li>
+                <li><a href="catalog.html" class="nav-link">Shop</a></li>
+                <li><a href="about.html" class="nav-link">About Us</a></li>
+                <li><a href="how-to-order.html" class="nav-link">How to Order</a></li>
+                <li><a href="faq.html" class="nav-link">FAQ</a></li>
+                <li><a href="cart.html" class="nav-link cart-link">🛒 Cart <span id="cart-count">0</span></a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <h2 class="company-tagline">HALARI HOUSE OF SEASONING</h2>
+            <h1>Elevate Your Flavors</h1>
+            <p>Premium, Handpicked Spices, Herbs, Yaji, Superfoods & Seasoning Base Delivered Fresh to Your Door</p>
+            <a href="catalog.html" class="btn btn-primary">Explore Our Collection</a>
+        </div>
+        <div class="hero-image">
+            <div class="spice-grid">
+                <div class="spice-item" style="background: linear-gradient(135deg, #FF6B6B, #FFE66D);">🌶️</div>
+                <div class="spice-item" style="background: linear-gradient(135deg, #4ECDC4, #44A08D);">🌿</div>
+                <div class="spice-item" style="background: linear-gradient(135deg, #95E1D3, #F38181);">✨</div>
+                <div class="spice-item" style="background: linear-gradient(135deg, #C7CEEA, #B5EAD7);">💫</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why Choose Halari Section -->
+    <section class="why-choose">
+        <div class="container">
+            <h2>Why Choose Halari?</h2>
+            <p class="section-subtitle">Premium spices that define authentic, delicious cooking</p>
+            <div class="why-choose-grid">
+                <div class="why-card">
+                    <div class="why-icon">🌱</div>
+                    <h4>100% Organic Sourcing</h4>
+                    <p>Ethically sourced from certified organic farms with rigorous quality standards</p>
+                </div>
+                <div class="why-card">
+                    <div class="why-icon">🍳</div>
+                    <h4>Authentic Blends</h4>
+                    <p>Carefully curated formulations based on traditional recipes and culinary expertise</p>
+                </div>
+                <div class="why-card">
+                    <div class="why-icon">✨</div>
+                    <h4>Preservative Free</h4>
+                    <p>Pure spices with no additives, fillers, or artificial preservatives—100% natural</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Visit Our Shop (moved) -->
+
+    <!-- Flavor Profiles Section -->
+    <section class="flavor-profiles">
+        <div class="container">
+            <h2>Understanding Our Spices</h2>
+            <p class="section-subtitle">Learn how to use our premium spices in your favorite dishes</p>
+            <div class="flavor-grid">
+                <div class="flavor-card">
+                    <div class="flavor-icon">🌶️</div>
+                    <h3>Bold & Spicy</h3>
+                    <p>Perfect for curries, soups, and meat marinades. Adds depth and complexity to savory dishes.</p>
+                    <small>Examples: Chili, Black Pepper, Cayenne</small>
+                </div>
+                <div class="flavor-card">
+                    <div class="flavor-icon">🌿</div>
+                    <h3>Fresh & Aromatic</h3>
+                    <p>Ideal for garnishes, salads, and light dishes. Brings brightness and freshness to meals.</p>
+                    <small>Examples: Basil, Oregano, Parsley</small>
+                </div>
+                <div class="flavor-card">
+                    <div class="flavor-icon">✨</div>
+                    <h3>Warm & Earthy</h3>
+                    <p>Excellent in breads, sweets, and slow-cooked dishes. Creates rich, comforting flavors.</p>
+                    <small>Examples: Cinnamon, Cumin, Cardamom</small>
+                </div>
+                <div class="flavor-card">
+                    <div class="flavor-icon">🎯</div>
+                    <h3>Signature Blends</h3>
+                    <p>Our exclusive Yaji blends combine multiple spices for instant, authentic flavor bursts.</p>
+                    <small>Ready-to-use for grilling, frying, and seasoning</small>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Chef's Favorites / Best Sellers Section -->
+    <!-- Customer Testimonials Section -->
+    <section class="testimonials">
+        <div class="container">
+            <h2>Customer Love</h2>
+            <p class="section-subtitle">Hear from our satisfied spice enthusiasts</p>
+            <div class="testimonials-slider">
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"The freshness is incredible! These spices have completely transformed my cooking. I can taste the quality immediately."</p>
+                    <p class="testimonial-author">— Zainab M., Lagos</p>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"Best Yaji I've ever had! The flavor is authentic and exactly what I've been looking for. Ordering again for sure."</p>
+                    <p class="testimonial-author">— Chidinma O., Abuja</p>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"No preservatives, pure flavor. The All Spice blend is my new kitchen staple. Halari is worth every penny!"</p>
+                    <p class="testimonial-author">— Ahmed K., Kano</p>
+                </div>
+                <div class="testimonial-card">
+                    <div class="testimonial-stars">⭐⭐⭐⭐⭐</div>
+                    <p class="testimonial-text">"Ordering via Instagram is so easy, and the customer service is amazing. These are premium spices at their finest."</p>
+                    <p class="testimonial-author">— Tunde A., Port Harcourt</p>
+                </div>
+            </div>
+            <div class="slider-dots">
+                <span class="dot active" onclick="currentTestimonial(1)"></span>
+                <span class="dot" onclick="currentTestimonial(2)"></span>
+                <span class="dot" onclick="currentTestimonial(3)"></span>
+                <span class="dot" onclick="currentTestimonial(4)"></span>
+            </div>
+        </div>
+    </section>
+
+    <!-- Featured Products Preview -->
+    <!-- Featured Products removed -->
+
+    <!-- Order CTA Section -->
+    <section class="cta">
+        <h2>Ready to Elevate Your Kitchen?</h2>
+        <p class="hero-cta">Order now and join thousands of satisfied customers enjoying premium spices</p>
+        <div class="cta-buttons">
+            <a href="catalog.html" class="btn btn-primary btn-large">Browse Our Catalog</a>
+        </div>
+        <!-- Visit Our Shop -->
+        <section class="visit-shop" id="visitShop">
+            <h2>📍 Visit Our Shop</h2>
+            <div class="visit-grid">
+                <div class="visit-details">
+                    <div class="visit-row"><div class="icon">📍</div><div><div class="label">Address</div><div class="value">Suit 2 Cherryhill Plaza, Utako, Abuja</div></div></div>
+                    <div class="visit-row"><div class="icon">🕐</div><div><div class="label">Hours</div><div class="value">9:30 AM - 6:00 PM, Monday to Sunday</div></div></div>
+                    <div class="visit-row"><div class="icon">📞</div><div><div class="label">Phone</div><div class="value"><a href="tel:+2348182138225" style="color:#4A2C1A;text-decoration:none">+234 818 213 8225</a></div></div></div>
+                    <div class="visit-row"><div class="icon">📧</div><div><div class="label">Email</div><div class="value"><a href="mailto:halari.seasonings@gmail.com" style="color:#4A2C1A;text-decoration:none">halari.seasonings@gmail.com</a></div></div></div>
+                </div>
+                <div class="map-wrapper">
+                    <iframe src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d15759.79194700383!2d7.41943225541993!3d9.068503299999998!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x104e74d536fae86d%3A0x83f2eb6ad731d663!2sCherry%20Hill%20Plaza!5e0!3m2!1sen!2saz!4v1782219665396!5m2!1sen!2saz" width="100%" height="400" style="border:0; border-radius: 10px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+                </div>
+            </div>
+        </section>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-section">
+                    <h3>HALARI</h3>
+                    <p>Premium • Authentic • Preservative-Free</p>
+                </div>
+                <div class="footer-section">
+                    <h4>Contact Us</h4>
+                    <p>📧 <a href="mailto:halari.seasonings@gmail.com">halari.seasonings@gmail.com</a></p>
+                    <p>📱 <a href="tel:+2348182138225">+2348182138225</a></p>
+                </div>
+                <div class="footer-section">
+                    <h4>Follow Us</h4>
+                    <p><a href="https://www.instagram.com/halari.seasonings?igsh=MW4wZjV1MG0xaGcyZg==" target="_blank" class="social-link">📸 Instagram</a></p>
+                    <p><a href="catalog.html" class="social-link">Shop Our Collection</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2026 Halari Seasonings. All rights reserved.</p>
+                <p class="footer-subtext">Handpicked Premium Spices | Direct from Farm to Your Kitchen</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="products.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

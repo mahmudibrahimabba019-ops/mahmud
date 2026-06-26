@@ -1,0 +1,1060 @@
+from typing import List, Optional
+from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy.orm import Session
+from database import engine, get_db, Base
+import models
+from pydantic import BaseModel
+from datetime import datetime, date, timedelta
+from typing import List
+import random
+import string
+import httpx
+import os
+import hmac
+import hashlib
+import json
+from dotenv import load_dotenv
+
+# Load environment variables (including ADMIN_PASSWORD)
+load_dotenv()
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "halari_admin")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "spices2024")
+
+# Create database tables
+Base.metadata.create_all(bind=engine)
+
+app = FastAPI(
+    title="Halari House of Seasoning",
+    description="Welcome to Halari House of Seasoning - Your premier destination for authentic Nigerian spices, herbs, and specialty yaji blends. Bringing flavor to your kitchen!"
+)
+
+# Allow your frontend to connect - FIXED: Added missing closing parenthesis
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_methods=["*"],
+    allow_headers=["*"],
+)  # <-- THIS WAS MISSING!
+
+# Serve images from the project root at /images
+app.mount("/images", StaticFiles(directory="."), name="images")
+
+# ============ PYDANTIC MODELS (Request/Response) ============
+
+# Customer creation (for guest checkout)
+class CustomerCreate(BaseModel):
+    email: str
+    phone: str
+    first_name: str
+    last_name: str
+    address: str
+    city: str
+    state: str
+    password: str = None  # Optional - if they want account
+
+# Customer response (what we send back)
+class CustomerResponse(BaseModel):
+    id: int
+    email: str
+    phone: str
+    first_name: str
+    last_name: str
+    address: str
+    city: str
+    state: str
+    has_account: bool
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# ============ ORDER MODELS ============
+
+class OrderItemCreate(BaseModel):
+    product_id: int
+    product_name: str
+    quantity: int
+    price_at_time: float
+    subtotal: float
+
+class OrderCreate(BaseModel):
+    customer_id: int
+    items: List[OrderItemCreate]
+    subtotal: float
+    delivery_fee: float = 3000
+    total_amount: float
+    delivery_address: str
+    delivery_phone: str
+    delivery_city: str
+    delivery_state: str
+    delivery_note: str = None
+    payment_reference: Optional[str] = None
+
+class OrderResponse(BaseModel):
+    id: int
+    order_number: str
+    customer_id: int
+    subtotal: float
+    delivery_fee: float
+    total_amount: float
+    status: str
+    payment_status: str
+    created_at: datetime
+    items: List[dict] = []
+    
+    class Config:
+        from_attributes = True
+
+# Simple response (extended for customers and orders)
+class MessageResponse(BaseModel):
+    message: str
+    customer_id: int = None
+    order_id: int = None
+    order_number: str = None
+
+# ============ ADMIN MODELS ============
+
+class AdminLogin(BaseModel):
+    username: str
+    password: str
+
+class AdminResponse(BaseModel):
+    message: str
+    logged_in: bool
+
+class OrderStatusUpdate(BaseModel):
+    status: str
+    payment_status: str = None
+
+# Your 42 products with images
+PRODUCTS = [
+    # ============ SPICES (28) ============
+    {"id": 1, "name": "All spice", "category": "spices", "price": 8000, "image": "ALL SPICE.jpeg"},
+    {"id": 2, "name": "Black pepper", "category": "spices", "price": 4000, "image": "BLACK PEPPER.jpeg"},
+    {"id": 3, "name": "Black Peppercorn", "category": "spices", "price": 2000, "image": "BLACK PEPPERCORN.jpeg"},
+    {"id": 4, "name": "Cardamom", "category": "spices", "price": 5000, "image": "CARDAMOM.jpeg"},
+    {"id": 5, "name": "Cayenne Pepper", "category": "spices", "price": 3500, "image": "CAYENNE PEPPER.jpeg"},
+    {"id": 6, "name": "Chia Seeds", "category": "SUPERFOODS", "price": 2000, "image": "CHIA SEEDS.jpeg"},
+    {"id": 7, "name": "Chili flakes", "category": "spices", "price": 3000, "image": "CHILI FLAKES.jpeg"},
+    {"id": 8, "name": "Chili pepper", "category": "spices", "price": 1500, "image": "CHILLI PEPPER.jpeg"},
+    {"id": 9, "name": "Cinnamon powder", "category": "spices", "price": 6000, "image": "CINNAMON POWDER.jpeg"},
+    {"id": 10, "name": "Cinnamon sticks", "category": "spices", "price": 1500, "image": "CINNAMON STICKS.jpeg"},
+    {"id": 11, "name": "Cloves", "category": "spices", "price": 3000, "image": "CLOVES.jpeg"},
+    {"id": 12, "name": "Coriander powder", "category": "spices", "price": 1500, "image": "CORIANDER.jpeg"},
+    {"id": 13, "name": "Cumin seeds", "category": "spices", "price": 3000, "image": "CUMIN SEEDS.jpeg"},
+    {"id": 14, "name": "Fennel seeds", "category": "spices", "price": 2000, "image": "FENNEL.jpeg"},
+    {"id": 15, "name": "Fenugreek", "category": "spices", "price": 1500, "image": "FENUGREEK.jpeg"},
+    {"id": 16, "name": "Flax seeds", "category": "SUPERFOODS", "price": 2500, "image": "FLAX SEEDS.jpeg"},
+    {"id": 17, "name": "Garlic powder", "category": "spices", "price": 2500, "image": "GARLIC POWDER.jpeg"},
+    {"id": 18, "name": "Ginger powder", "category": "spices", "price": 1200, "image": "GINGER POWDER.jpeg"},
+    {"id": 19, "name": "Negro pepper", "category": "spices", "price": 500, "image": "NEGRO PEPPER.jpeg"},
+    {"id": 20, "name": "Nutmeg", "category": "spices", "price": 4000, "image": "NUTMEG.jpeg"},
+    {"id": 21, "name": "Paprika", "category": "spices", "price": 1500, "image": "PAPRIKA.jpeg"},
+    {"id": 22, "name": "Saffron", "category": "spices", "price": 3500, "image": "SAFFRON.jpeg"},
+    {"id": 23, "name": "Seasalt", "category": "SEASONING BASE", "price": 1500, "image": "SEASALT.jpeg"},
+    {"id": 24, "name": "Sesame seeds", "category": "SUPERFOODS", "price": 3000, "image": "SESAME SEEDS.jpeg"},
+    {"id": 25, "name": "Star anise", "category": "spices", "price": 1500, "image": "STAR ANISE.jpeg"},
+    {"id": 26, "name": "Turmeric", "category": "spices", "price": 2500, "image": "TURMERIC.jpeg"},
+    {"id": 27, "name": "White pepper", "category": "spices", "price": 5000, "image": "WHITE PEPPER.jpeg"},
+    {"id": 28, "name": "White peppercorn", "category": "spices", "price": 2500, "image": "WHITE PEPPERCORN.jpeg"},
+
+    # ============ HERBS (8) ============
+    {"id": 29, "name": "Basil", "category": "herbs", "price": 2000, "image": "BASIL.jpeg"},
+    {"id": 30, "name": "Bayleaf", "category": "herbs", "price": 600, "image": "BAYLEAF.jpeg"},
+    {"id": 31, "name": "Lemongrass", "category": "herbs", "price": 600, "image": "LEMONGRASS.jpeg"},
+    {"id": 32, "name": "Mint", "category": "herbs", "price": 1500, "image": "MINT.jpeg"},
+    {"id": 33, "name": "Oregano", "category": "herbs", "price": 2000, "image": "OREGANO.jpeg"},
+    {"id": 34, "name": "Parsley", "category": "herbs", "price": 1500, "image": "PARSLEY.jpeg"},
+    {"id": 35, "name": "Rosemary", "category": "herbs", "price": 1000, "image": "ROSEMARY.jpeg"},
+    {"id": 36, "name": "Thyme", "category": "herbs", "price": 1500, "image": "THYME.jpeg"},
+
+    # ============ YAJI (6) ============
+    {"id": 37, "name": "150g All spice Yaji", "category": "yaji", "price": 2500, "image": "ALL SPICE YAJI.jpeg"},
+    {"id": 38, "name": "150g Daddawa Yaji", "category": "yaji", "price": 2500, "image": "DADDAWA YAJI.jpeg"},
+    {"id": 39, "name": "150g Garlic Yaji", "category": "yaji", "price": 3000, "image": "GARLIC YAJI.jpeg"},
+    {"id": 40, "name": "400g All spice Yaji", "category": "yaji", "price": 6500, "image": "ALL SPICE YAJI.jpeg"},
+    {"id": 41, "name": "400g Daddawa Yaji", "category": "yaji", "price": 6500, "image": "DADDAWA YAJI.jpeg"},
+    {"id": 42, "name": "400g Garlic Yaji", "category": "yaji", "price": 7000, "image": "GARLIC YAJI.jpeg"}
+]
+
+@app.get("/")
+def home():
+    return {
+        "company": "Halari House of Seasoning",
+        "message": "Welcome to Halari House of Seasoning",
+        "description": "Your premier destination for authentic Nigerian spices, herbs, and specialty yaji blends. Bringing flavor to your kitchen!",
+        "total_products": len(PRODUCTS)
+    }
+
+@app.get("/products")
+def get_products(db: Session = Depends(get_db)):
+    """Return products list augmented with stock info from the database when available."""
+    products_with_stock = []
+    for p in PRODUCTS:
+        prod = dict(p)
+        prod_db = db.query(models.Product).filter(models.Product.id == p.get('id')).first()
+        prod['stock_quantity'] = prod_db.stock_quantity if prod_db else 100
+        prod['low_stock_threshold'] = prod_db.low_stock_threshold if prod_db else 10
+        products_with_stock.append(prod)
+    return products_with_stock
+
+@app.get("/products/{product_id}")
+def get_product(product_id: int, db: Session = Depends(get_db)):
+    for product in PRODUCTS:
+        if product["id"] == product_id:
+            prod = dict(product)
+            prod_db = db.query(models.Product).filter(models.Product.id == product_id).first()
+            prod['stock_quantity'] = prod_db.stock_quantity if prod_db else 100
+            prod['low_stock_threshold'] = prod_db.low_stock_threshold if prod_db else 10
+            return prod
+    return {"error": "Product not found"}
+
+@app.get("/products/category/{category}")
+def get_products_by_category(category: str):
+    category_products = [p for p in PRODUCTS if p["category"] == category]
+    return category_products
+
+
+# ============ CUSTOMER ENDPOINTS ============
+
+@app.post("/customers/guest", response_model=MessageResponse)
+def create_guest_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
+    """
+    Create a new customer (guest checkout - no password required)
+    """
+    # Check if customer already exists with this email
+    existing_customer = db.query(models.Customer).filter(
+        models.Customer.email == customer.email
+    ).first()
+    
+    if existing_customer:
+        # Customer exists, return their ID
+        return MessageResponse(
+            message="Welcome back! Using your existing account.",
+            customer_id=existing_customer.id
+        )
+    
+    # Create new customer (guest - no password)
+    db_customer = models.Customer(
+        email=customer.email,
+        phone=customer.phone,
+        first_name=customer.first_name,
+        last_name=customer.last_name,
+        address=customer.address,
+        city=customer.city,
+        state=customer.state,
+        password=None,  # No password for guest
+        has_account=False  # Guest account
+    )
+    
+    db.add(db_customer)
+    db.commit()
+    db.refresh(db_customer)
+    
+    return MessageResponse(
+        message="Customer created successfully! You can now proceed to payment.",
+        customer_id=db_customer.id
+    )
+
+@app.get("/customers/{customer_id}", response_model=CustomerResponse)
+def get_customer(customer_id: int, db: Session = Depends(get_db)):
+    """
+    Get customer details by ID
+    """
+    customer = db.query(models.Customer).filter(
+        models.Customer.id == customer_id
+    ).first()
+    
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    return customer
+
+@app.get("/customers/email/{email}", response_model=CustomerResponse)
+def get_customer_by_email(email: str, db: Session = Depends(get_db)):
+    """
+    Find customer by email
+    """
+    customer = db.query(models.Customer).filter(
+        models.Customer.email == email
+    ).first()
+    
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    return customer
+
+
+# ============ ORDER ENDPOINTS ============
+
+def generate_order_number():
+    """Generate unique order number like HHS-2024-1234"""
+    year = datetime.now().year
+    random_num = random.randint(1000, 9999)
+    return f"HHS-{year}-{random_num}"
+
+
+@app.post("/orders/create", response_model=MessageResponse)
+def create_order(order: OrderCreate, db: Session = Depends(get_db)):
+    """
+    Create a new order from cart
+    """
+    print(f"[DEBUG] Received payment_reference: {repr(order.payment_reference)}")
+    print(f"[DEBUG] Full received order payload: {order.dict()}")
+    # Check if customer exists
+    customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    
+    # Generate unique order number
+    order_number = generate_order_number()
+    # Check stock availability for each item before creating order
+    for item in order.items:
+        prod_db = db.query(models.Product).filter(models.Product.id == item.product_id).first()
+        available = prod_db.stock_quantity if prod_db else 100
+        if available < item.quantity:
+            raise HTTPException(status_code=400, detail=f"Sorry, only {available} units of {item.product_name} available")
+    
+    # Create the order
+    db_order = models.Order(
+        order_number=order_number,
+        customer_id=order.customer_id,
+        subtotal=order.subtotal,
+        delivery_fee=order.delivery_fee,
+        total_amount=order.total_amount,
+        status="pending",
+        payment_status="unpaid",
+        payment_reference=order.payment_reference,
+        delivery_address=order.delivery_address,
+        delivery_phone=order.delivery_phone,
+        delivery_city=order.delivery_city,
+        delivery_state=order.delivery_state,
+        delivery_note=order.delivery_note
+    )
+    
+    
+    db.add(db_order)
+    db.commit()
+    db.refresh(db_order)
+    
+    # Add order items
+    for item in order.items:
+        db_item = models.OrderItem(
+            order_id=db_order.id,
+            product_id=item.product_id,
+            product_name=item.product_name,
+            quantity=item.quantity,
+            price_at_time=item.price_at_time,
+            subtotal=item.subtotal
+        )
+        db.add(db_item)
+    
+    db.commit()
+    
+    return MessageResponse(
+        message="Order created successfully!",
+        order_id=db_order.id,
+        order_number=db_order.order_number
+    )
+
+
+@app.get("/orders/{order_id}", response_model=OrderResponse)
+def get_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Get order details by ID
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get order items
+    items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order_id).all()
+    
+    # Convert items to dict
+    items_list = []
+    for item in items:
+        items_list.append({
+            "product_id": item.product_id,
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "price": item.price_at_time,
+            "subtotal": item.subtotal
+        })
+    
+    # Create response
+    return {
+        "id": order.id,
+        "order_number": order.order_number,
+        "customer_id": order.customer_id,
+        "subtotal": order.subtotal,
+        "delivery_fee": order.delivery_fee,
+        "total_amount": order.total_amount,
+        "status": order.status,
+        "payment_status": order.payment_status,
+        "created_at": order.created_at,
+        "items": items_list
+    }
+
+
+@app.get("/orders/customer/{customer_id}")
+def get_customer_orders(customer_id: int, db: Session = Depends(get_db)):
+    """
+    Get all orders for a customer
+    """
+    orders = db.query(models.Order).filter(
+        models.Order.customer_id == customer_id
+    ).order_by(models.Order.created_at.desc()).all()
+    
+    return orders
+
+
+@app.put("/orders/{order_id}/status")
+def update_order_status(order_id: int, status: str, payment_status: str = None, db: Session = Depends(get_db)):
+    """
+    Update order status (for admin use)
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order.status = status
+    if payment_status:
+        order.payment_status = payment_status
+    
+    db.commit()
+    
+    return {"message": f"Order {order.order_number} updated to {status}"}
+
+
+# ============ ADMIN ENDPOINTS ============
+
+@app.post("/admin/login", response_model=AdminResponse)
+def admin_login(login: AdminLogin):
+    """
+    Simple admin login
+    """
+    if login.username == ADMIN_USERNAME and login.password == os.getenv('ADMIN_PASSWORD', 'spices2024'):
+        return AdminResponse(
+            message="Login successful! Welcome to Halari House admin.",
+            logged_in=True
+        )
+    else:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
+
+def update_env_var(key: str, value: str, env_path: str = ".env"):
+    """Replace or add a key in a .env file at env_path."""
+    try:
+        if os.path.exists(env_path):
+            with open(env_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+        else:
+            lines = []
+
+        key_found = False
+        for i, line in enumerate(lines):
+            if line.strip().startswith(f"{key}="):
+                lines[i] = f"{key}={value}\n"
+                key_found = True
+                break
+
+        if not key_found:
+            # Ensure newline at end
+            if lines and not lines[-1].endswith('\n'):
+                lines[-1] = lines[-1] + '\n'
+            lines.append(f"{key}={value}\n")
+
+        with open(env_path, 'w', encoding='utf-8') as f:
+            f.writelines(lines)
+        return True
+    except Exception as e:
+        print('Failed to update .env:', e)
+        return False
+
+
+@app.post('/admin/change-password')
+def admin_change_password(payload: ChangePasswordRequest):
+    """Allow admin to change their password (updates .env)."""
+    stored = os.getenv('ADMIN_PASSWORD', 'spices2024')
+    if payload.current_password != stored:
+        raise HTTPException(status_code=401, detail='Current password is incorrect')
+    if not payload.new_password or len(payload.new_password) < 6:
+        raise HTTPException(status_code=400, detail='New password must be at least 6 characters')
+
+    ok = update_env_var('ADMIN_PASSWORD', payload.new_password)
+    if not ok:
+        raise HTTPException(status_code=500, detail='Failed to update password file')
+
+    # Update runtime env so subsequent checks use new password immediately
+    os.environ['ADMIN_PASSWORD'] = payload.new_password
+    return { 'message': 'Password updated successfully!' }
+
+
+@app.get("/admin")
+def admin_home():
+    """
+    Admin home - lists all available admin endpoints
+    """
+    return {
+        "admin_endpoints": {
+            "login": "POST /admin/login - Login as admin",
+            "dashboard": "GET /admin/summary - View dashboard summary",
+            "all_orders": "GET /admin/orders - View all orders",
+            "order_details": "GET /admin/orders/{id} - View specific order",
+            "update_order": "PUT /admin/orders/{id}/status - Update order status",
+            "all_customers": "GET /admin/customers - View all customers"
+        }
+    }
+
+
+@app.get("/admin/summary")
+def admin_summary(db: Session = Depends(get_db)):
+    """
+    Get summary dashboard data for admin
+    """
+    from datetime import date
+    
+    today = date.today()
+    
+    # Get today's orders
+    today_orders = db.query(models.Order).filter(
+        models.Order.created_at >= str(today)
+    ).all()
+    
+    # Calculate today's sales
+    today_sales = sum(order.total_amount for order in today_orders)
+    
+    # Get total customers
+    total_customers = db.query(models.Customer).count()
+    
+    # Get pending orders
+    pending_orders = db.query(models.Order).filter(
+        models.Order.status == "pending"
+    ).count()
+    
+    # Get 5 most recent orders
+    recent = db.query(models.Order).order_by(
+        models.Order.created_at.desc()
+    ).limit(5).all()
+    
+    recent_orders_list = []
+    for order in recent:
+        # Get customer name
+        customer = db.query(models.Customer).filter(
+            models.Customer.id == order.customer_id
+        ).first()
+        
+        customer_name = f"{customer.first_name} {customer.last_name}" if customer else "Unknown"
+        
+        recent_orders_list.append({
+            "order_number": order.order_number,
+            "created_at": str(order.created_at),
+            "customer": customer_name,
+            "total": order.total_amount,
+            "status": order.status,
+            "payment_status": order.payment_status
+        })
+    
+    return {
+        "total_orders_today": len(today_orders),
+        "total_sales_today": today_sales,
+        "total_customers": total_customers,
+        "pending_orders": pending_orders,
+        "recent_orders": recent_orders_list
+    }
+
+
+@app.post("/admin/products/{product_id}/stock")
+def update_product_stock(product_id: int, payload: dict, db: Session = Depends(get_db)):
+    """Update stock for a product. Payload: { "delta": 10 } or { "set": 50 }"""
+    prod = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not prod:
+        # Create product entry using PRODUCTS list if available
+        p = next((x for x in PRODUCTS if x.get('id') == product_id), None)
+        if p:
+            prod = models.Product(id=p['id'], name=p.get('name'), category=p.get('category'), price=p.get('price', 0), image=p.get('image'))
+            db.add(prod)
+            db.commit()
+            db.refresh(prod)
+        else:
+            raise HTTPException(status_code=404, detail='Product not found')
+
+    if 'set' in payload:
+        # Explicitly allow zero; reject negative set values
+        try:
+            requested = int(payload.get('set', prod.stock_quantity))
+        except Exception:
+            raise HTTPException(status_code=400, detail='Invalid set value')
+        if requested < 0:
+            raise HTTPException(status_code=400, detail='Stock must be >= 0')
+        prod.stock_quantity = requested
+    elif 'delta' in payload:
+        delta = int(payload.get('delta', 0))
+        # Apply delta but never allow negative final stock; clamp to 0
+        prod.stock_quantity = max(0, prod.stock_quantity + delta)
+
+    db.add(prod)
+    db.commit()
+    return { 'message': 'Stock updated', 'product_id': prod.id, 'stock_quantity': prod.stock_quantity }
+
+
+@app.get('/admin/low-stock')
+def get_low_stock(db: Session = Depends(get_db)):
+    prods = db.query(models.Product).filter(models.Product.stock_quantity < models.Product.low_stock_threshold).all()
+    return [p.to_dict() for p in prods]
+
+
+@app.get("/admin/orders")
+def admin_get_all_orders(
+    from_date: str = None,
+    to_date: str = None,
+    today: bool = False,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all orders (admin only)
+    """
+    query = db.query(models.Order)
+
+    # Handle today shortcut
+    if today:
+        today_date = date.today()
+        start = datetime.combine(today_date, datetime.min.time())
+        end = datetime.combine(today_date, datetime.max.time())
+        query = query.filter(models.Order.created_at >= start, models.Order.created_at <= end)
+    else:
+        # Handle from/to date range if provided (YYYY-MM-DD)
+        try:
+            if from_date:
+                start = datetime.strptime(from_date, '%Y-%m-%d')
+                query = query.filter(models.Order.created_at >= start)
+            if to_date:
+                # include the entire to_date by setting time to end of day
+                end = datetime.strptime(to_date, '%Y-%m-%d') + timedelta(days=1)
+                query = query.filter(models.Order.created_at < end)
+        except Exception:
+            raise HTTPException(status_code=400, detail='Invalid date format. Use YYYY-MM-DD')
+
+    orders = query.order_by(models.Order.created_at.desc()).all()
+    
+    orders_list = []
+    for order in orders:
+        # Get customer name
+        customer = db.query(models.Customer).filter(
+            models.Customer.id == order.customer_id
+        ).first()
+        
+        customer_name = f"{customer.first_name} {customer.last_name}" if customer else "Unknown"
+        customer_phone = customer.phone if customer else "Unknown"
+        
+        orders_list.append({
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "customer_name": customer_name,
+            "customer_phone": customer_phone,
+            "total_amount": order.total_amount,
+            "status": order.status,
+            "payment_status": order.payment_status,
+            "created_at": str(order.created_at),
+            "item_count": len(order.items) if order.items else 0
+        })
+    
+    return {
+        "total_orders": len(orders_list),
+        "orders": orders_list
+    }
+
+
+@app.get("/admin/orders/{order_id}")
+def admin_get_order_details(order_id: int, db: Session = Depends(get_db)):
+    """
+    Get complete order details with all items (admin only)
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    # Get customer
+    customer = db.query(models.Customer).filter(
+        models.Customer.id == order.customer_id
+    ).first()
+    
+    # Get order items
+    items = db.query(models.OrderItem).filter(
+        models.OrderItem.order_id == order_id
+    ).all()
+    
+    items_list = []
+    for item in items:
+        items_list.append({
+            "product_name": item.product_name,
+            "quantity": item.quantity,
+            "price": item.price_at_time,
+            "subtotal": item.subtotal
+        })
+    
+    return {
+        "order_number": order.order_number,
+        "created_at": str(order.created_at),
+        "customer": {
+            "name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
+            "email": customer.email if customer else "Unknown",
+            "phone": customer.phone if customer else "Unknown",
+            "address": customer.address if customer else "Unknown",
+            "city": customer.city if customer else "Unknown",
+            "state": customer.state if customer else "Unknown"
+        },
+        "delivery": {
+            "address": order.delivery_address,
+            "phone": order.delivery_phone,
+            "city": order.delivery_city,
+            "state": order.delivery_state,
+            "note": order.delivery_note
+        },
+        "items": items_list,
+        "subtotal": order.subtotal,
+        "delivery_fee": order.delivery_fee,
+        "total_amount": order.total_amount,
+        "status": order.status,
+        "payment_status": order.payment_status
+    }
+
+
+@app.put("/admin/orders/{order_id}/status")
+def admin_update_order_status(
+    order_id: int,
+    update: OrderStatusUpdate,
+    db: Session = Depends(get_db),
+):
+    """
+    Update order status (admin only)
+    status options: pending, paid, processing, shipped, delivered, cancelled
+    payment_status options: unpaid, paid, failed, refunded
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Update status
+    order.status = update.status
+
+    # Update payment status if provided
+    if update.payment_status:
+        order.payment_status = update.payment_status
+
+    db.commit()
+
+    return {
+        "message": f"Order {order.order_number} updated successfully",
+        "order_id": order.id,
+        "new_status": order.status,
+        "new_payment_status": order.payment_status,
+    }
+
+
+@app.get("/admin/customers")
+def admin_get_all_customers(db: Session = Depends(get_db)):
+    """
+    Get all customers with their order history (admin only)
+    """
+    customers = db.query(models.Customer).order_by(
+        models.Customer.created_at.desc()
+    ).all()
+    
+    customers_list = []
+    for customer in customers:
+        # Get customer's orders
+        orders = db.query(models.Order).filter(
+            models.Order.customer_id == customer.id
+        ).all()
+        
+        total_spent = sum(order.total_amount for order in orders)
+        order_count = len(orders)
+        
+        customers_list.append({
+            "id": customer.id,
+            "name": f"{customer.first_name} {customer.last_name}",
+            "email": customer.email,
+            "phone": customer.phone,
+            "address": f"{customer.address}, {customer.city}, {customer.state}",
+            "joined": str(customer.created_at),
+            "has_account": customer.has_account,
+            "total_orders": order_count,
+            "total_spent": total_spent
+        })
+    
+    return {
+        "total_customers": len(customers_list),
+        "customers": customers_list
+    }
+
+
+@app.get("/api/paystack-public-key")
+def get_public_key():
+    """
+    Return the Paystack public key for frontend
+    """
+    from dotenv import load_dotenv
+    import os
+
+    load_dotenv()
+    PAYSTACK_PUBLIC_KEY = os.getenv("PAYSTACK_PUBLIC_KEY")
+
+    if not PAYSTACK_PUBLIC_KEY:
+        raise HTTPException(status_code=500, detail="Paystack public key not configured")
+
+    return {"public_key": PAYSTACK_PUBLIC_KEY}
+
+
+def send_order_confirmation_email(customer_email: str, order_data: dict):
+    """
+    Simulate sending an order confirmation email by printing to console.
+    """
+    try:
+        print(f"[EMAIL FUNC] send_order_confirmation_email called for: {customer_email}")
+        print(f"SENDING EMAIL TO: {customer_email}")
+        print("========================================")
+        print("HALARI HOUSE OF SEASONING")
+        print(f"Order Confirmation #{order_data.get('order_number', '')}")
+        print("========================================\n")
+
+        print(f"Dear {order_data.get('customer_name', 'Customer')},\n")
+        print("Thank you for your order! Your payment was successful.\n")
+        print("ORDER SUMMARY:")
+        print("----------------------------------------")
+
+        for item in order_data.get('items', []):
+            name = item.get('product_name', 'Item')
+            qty = item.get('quantity', 1)
+            price = item.get('price', item.get('subtotal', 0))
+            # Format price as integer/₦ with comma
+            try:
+                price_str = f"₦{int(price):,}"
+            except Exception:
+                price_str = f"₦{price}"
+            print(f"{qty}x {name} - {price_str}")
+
+        print("----------------------------------------\n")
+        try:
+            subtotal_str = f"₦{int(order_data.get('subtotal', 0)):,}"
+        except Exception:
+            subtotal_str = f"₦{order_data.get('subtotal', 0)}"
+        try:
+            delivery_fee_str = f"₦{int(order_data.get('delivery_fee', 3000)):,}"
+        except Exception:
+            delivery_fee_str = f"₦{order_data.get('delivery_fee', 3000)}"
+        try:
+            total_str = f"₦{int(order_data.get('total_amount', 0)):,}"
+        except Exception:
+            total_str = f"₦{order_data.get('total_amount', 0)}"
+
+        print(f"Subtotal: {subtotal_str}")
+        print(f"Delivery Fee: {delivery_fee_str}")
+        print(f"TOTAL PAID: {total_str}\n")
+
+        print("DELIVERY ADDRESS:")
+        print(order_data.get('delivery_address', ''))
+
+        print("\nWe will begin processing your order shortly.\n")
+        print("Thank you for shopping with Halari House of Seasoning!")
+        print("========================================")
+    except Exception as e:
+        print('Failed to simulate sending email:', e)
+
+
+def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_response: dict = None):
+    """Fulfill an order after Paystack verification."""
+    if order.payment_status == "paid":
+        print(f"[INFO] Order {order.order_number} is already paid. Skipping processing.")
+        return paystack_response or {"status": "already_paid"}
+
+    order_amount_naira = order.total_amount
+    order_amount_kobo = round(order_amount_naira * 100)
+
+    if paystack_amount_kobo != order_amount_kobo:
+        print(f"[ERROR] Amount mismatch! Paystack: {paystack_amount_kobo} kobo (₦{paystack_amount_kobo/100}), Order: {order_amount_kobo} kobo (₦{order_amount_naira})")
+        order.payment_status = "failed"
+        db.add(order)
+        db.commit()
+        raise HTTPException(status_code=400, detail=f"Amount mismatch. Paid: ₦{paystack_amount_kobo/100}, Expected: ₦{order_amount_naira}")
+
+    try:
+        order.status = "processing"
+        order.payment_status = "paid"
+        db.add(order)
+        db.commit()
+    except Exception as e:
+        print('[ERROR] Could not update order status:', e)
+        raise HTTPException(status_code=500, detail="Failed to update order status")
+
+    try:
+        customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
+        if customer:
+            print(f"📧 SENDING EMAIL TO: {customer.email}")
+            print(f"Order #{order.order_number} - Thank you for your purchase!")
+            print(f"Total paid: ₦{order.total_amount}")
+            print("We will begin processing your order shortly.")
+        else:
+            print('[DEBUG] No customer found for the order')
+
+        items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).all()
+        for it in items:
+            prod = db.query(models.Product).filter(models.Product.id == it.product_id).first()
+            if prod:
+                new_qty = max(0, prod.stock_quantity - (it.quantity or 0))
+                print(f"[STOCK] Reducing Product {prod.id} from {prod.stock_quantity} -> {new_qty}")
+                prod.stock_quantity = new_qty
+                db.add(prod)
+            else:
+                init_qty = max(0, 100 - (it.quantity or 0))
+                new_prod = models.Product(id=it.product_id, name=it.product_name, price=it.price_at_time, stock_quantity=init_qty, low_stock_threshold=10)
+                db.add(new_prod)
+                print(f"[STOCK] Created Product {it.product_id} with stock {init_qty}")
+        db.commit()
+    except Exception as e:
+        print('[ERROR] Error in post-payment processing (email/stock):', e)
+        # Don't raise - payment is already verified and order status updated
+
+    return paystack_response or {"status": "success"}
+
+
+@app.get("/api/verify-payment/{reference}")
+async def verify_payment(reference: str, db: Session = Depends(get_db)):
+    """
+    Verify payment with Paystack
+    """
+    print("=" * 50)
+    print("🔔 VERIFY PAYMENT FUNCTION WAS CALLED!")
+    print("=" * 50)
+    print(f"[DEBUG] ===== verify_payment CALLED =====")
+    print(f"[DEBUG] reference: {reference}")
+    import os
+    from dotenv import load_dotenv
+    import httpx
+
+    load_dotenv()
+    PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
+
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack secret key not configured")
+
+    headers = {
+        "Authorization": f"Bearer {PAYSTACK_SECRET_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            f"https://api.paystack.co/transaction/verify/{reference}",
+            headers=headers
+        )
+
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Payment verification failed")
+
+        data = response.json()
+
+        status = data.get('data', {}).get('status')
+        if not status or status.lower() != 'success':
+            return data
+
+        order = db.query(models.Order).filter(models.Order.payment_reference == reference).first()
+
+        if not order:
+            print(f"[ERROR] Order not found for payment reference: {reference}")
+            raise HTTPException(status_code=404, detail="Order not found for this payment reference")
+
+        paystack_amount_kobo = data.get('data', {}).get('amount', 0)
+        fulfill_order(db, order, paystack_amount_kobo, data)
+        return data
+
+
+@app.post("/webhook/paystack")
+async def paystack_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
+    """Handle Paystack webhook events."""
+    raw_body = await request.body()
+    signature = request.headers.get("x-paystack-signature")
+
+    load_dotenv()
+    PAYSTACK_SECRET_KEY = os.getenv("PAYSTACK_SECRET_KEY")
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack secret key not configured")
+
+    if not signature:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    computed_signature = hmac.new(
+        PAYSTACK_SECRET_KEY.encode("utf-8"),
+        raw_body,
+        hashlib.sha512
+    ).hexdigest()
+
+    if not hmac.compare_digest(computed_signature, signature):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    payload = json.loads(raw_body)
+    if payload.get("event") != "charge.success":
+        return {"received": True}
+
+    data = payload.get("data", {})
+    reference = data.get("reference")
+    amount_kobo = data.get("amount")
+
+    if not reference:
+        print("[WEBHOOK ALERT] charge.success webhook missing reference")
+        return {"received": True}
+
+    order = db.query(models.Order).filter(models.Order.payment_reference == reference).first()
+    if not order:
+        print(f"[WEBHOOK ALERT] No matching order for paid reference: {reference}")
+        return {"received": True}
+
+    try:
+        fulfill_order(db, order, amount_kobo, payload)
+    except HTTPException as exc:
+        print(f"[WEBHOOK ALERT] fulfill_order rejected reference {reference}: {exc.detail}")
+    return {"received": True}
+
+
+@app.post("/test/send-email/{order_id}")
+def test_send_email(order_id: int, db: Session = Depends(get_db)):
+    """Test endpoint to trigger the simulated email for a given order id."""
+    print(f"[TEST ENDPOINT] send-email called for order_id: {order_id}")
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
+    items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).all()
+
+    items_list = []
+    for it in items:
+        items_list.append({
+            'product_name': it.product_name,
+            'quantity': it.quantity,
+            'price': it.price_at_time,
+            'subtotal': it.subtotal
+        })
+
+    order_data = {
+        'order_number': order.order_number,
+        'customer_name': f"{customer.first_name} {customer.last_name}" if customer else 'Customer',
+        'items': items_list,
+        'subtotal': order.subtotal,
+        'delivery_fee': order.delivery_fee,
+        'total_amount': order.total_amount,
+        'delivery_address': order.delivery_address
+    }
+
+    print(f"[TEST ENDPOINT] About to call send_order_confirmation_email for order: {order.order_number}")
+    send_order_confirmation_email(customer.email if customer else 'unknown@example.com', order_data)
+    print('SENDING ADMIN NOTIFICATION TO: admin@halarihouse.com')
+
+    return {"message": "Test email sent (check server logs)", "order_id": order.id}
