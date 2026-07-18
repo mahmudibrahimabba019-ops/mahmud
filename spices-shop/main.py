@@ -128,6 +128,9 @@ class OrderStatusUpdate(BaseModel):
     status: str
     payment_status: str = None
 
+class PaymentReferenceUpdate(BaseModel):
+    payment_reference: str
+
 # Your 42 products with images
 PRODUCTS = [
     # ============ SPICES (28) ============
@@ -426,6 +429,22 @@ def update_order_status(order_id: int, status: str, payment_status: str = None, 
     db.commit()
     
     return {"message": f"Order {order.order_number} updated to {status}"}
+
+
+@app.patch("/orders/{order_id}/payment-reference")
+def update_payment_reference(order_id: int, update: PaymentReferenceUpdate, db: Session = Depends(get_db)):
+    """
+    Update the payment reference for an order after Paystack returns it.
+    Called from the frontend after Paystack popup closes with the real reference.
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    
+    order.payment_reference = update.payment_reference
+    db.commit()
+    
+    return {"message": "Payment reference updated"}
 
 
 # ============ ADMIN ENDPOINTS ============
@@ -756,6 +775,82 @@ def admin_update_order_status(
         "order_id": order.id,
         "new_status": order.status,
         "new_payment_status": order.payment_status,
+    }
+
+
+@app.post("/admin/orders/{order_id}/refund")
+async def refund_order(order_id: int, db: Session = Depends(get_db)):
+    """
+    Refund a paid order with Paystack and restore stock.
+    """
+    order = db.query(models.Order).filter(models.Order.id == order_id).first()
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if order.payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Order is not paid and cannot be refunded")
+
+    if not order.payment_reference:
+        raise HTTPException(status_code=400, detail="No payment reference found for this order")
+
+    paystack_secret_key = os.getenv("PAYSTACK_SECRET_KEY")
+    if not paystack_secret_key:
+        raise HTTPException(status_code=500, detail="PAYSTACK_SECRET_KEY is not configured")
+
+    payload = {
+        "transaction": order.payment_reference,
+        "amount": round(order.total_amount * 100),
+    }
+
+    headers = {
+        "Authorization": f"Bearer {paystack_secret_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            response = await client.post(
+                "https://api.paystack.co/refund",
+                json=payload,
+                headers=headers,
+            )
+            response_data = response.json() if response.content else {}
+            print(f"[REFUND] Paystack response status: {response.status_code}, body: {response_data}")
+    except Exception as exc:
+        print(f"[REFUND] Exception calling Paystack refund API: {exc}")
+        raise HTTPException(status_code=502, detail="Refund failed on Paystack's end — check server logs")
+
+    if response.status_code != 200 or not response_data.get("status", False):
+        print(f"[REFUND] Paystack refund failed. Status: {response.status_code}, body: {response_data}")
+        raise HTTPException(status_code=502, detail="Refund failed on Paystack's end — check server logs")
+
+    try:
+        order.payment_status = "refunded"
+        order.status = "cancelled"
+
+        items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).all()
+        for it in items:
+            prod = db.query(models.Product).filter(models.Product.id == it.product_id).first()
+            if prod:
+                prod.stock_quantity += (it.quantity or 0)
+                db.add(prod)
+            else:
+                print(f"[REFUND] Product {it.product_id} not found while restoring stock.")
+
+        db.commit()
+
+    except Exception as exc:
+        print(f"[REFUND] Refund succeeded on Paystack but DB update failed: {exc}")
+        raise HTTPException(
+            status_code=500,
+            detail="Refund went through on Paystack but DB update failed; manual follow-up may be required",
+        )
+
+    return {
+        "message": "Refund successful",
+        "order_number": order.order_number,
+        "refunded_amount": order.total_amount,
+        "stock_restored": True,
     }
 
 

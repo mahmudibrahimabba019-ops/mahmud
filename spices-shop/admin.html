@@ -592,6 +592,7 @@
                         </select>
                         
                         <button onclick="updateOrderStatus(${order.order_id})">Update Status</button>
+                        <button id="refundBtn" onclick="processRefund(${order.order_id})" data-order-number="${details.order_number}" data-total-amount="${details.total_amount}" style="display: ${details.payment_status === 'paid' ? 'inline-block' : 'none'}; background-color: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-left: 10px;">Process Refund</button>
                     </div>
                 `;
                 
@@ -626,6 +627,42 @@
                 }
             } catch (error) {
                 alert('Error updating order');
+            }
+        }
+        
+        async function processRefund(orderId) {
+            const btn = event.target;
+            const orderNumber = btn.getAttribute('data-order-number');
+            const totalAmount = btn.getAttribute('data-total-amount');
+            
+            if (!confirm(`Are you sure you want to refund order #${orderNumber} for ₦${totalAmount}? This will cancel the order and restore stock. This cannot be undone.`)) {
+                return;
+            }
+            
+            btn.disabled = true;
+            const originalText = btn.textContent;
+            btn.textContent = 'Processing refund...';
+            
+            try {
+                const response = await fetch(`${API_URL}/admin/orders/${orderId}/refund`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.ok) {
+                    alert('Refund processed successfully! Stock has been restored.');
+                    backToOrders();
+                    loadSummary();
+                    loadAllOrders();
+                } else {
+                    const errorData = await response.json();
+                    alert('Refund failed: ' + (errorData.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error processing refund: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         }
         

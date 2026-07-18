@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>Checkout - Halari House of Seasoning</title>
     <style>
         * {
@@ -449,7 +452,92 @@
             const amountInKobo = Math.round(totalAmount * 100);
             console.log('[pay] total amount:', totalAmount, 'kobo:', amountInKobo);
             
-            // Set up Paystack handler exactly like test button
+            // Create customer first
+            const customerData = {
+                email: document.getElementById('email').value.trim(),
+                phone: document.getElementById('phone').value.trim(),
+                first_name: document.getElementById('firstName').value.trim(),
+                last_name: document.getElementById('lastName').value.trim(),
+                address: document.getElementById('address').value.trim(),
+                city: document.getElementById('city').value.trim(),
+                state: document.getElementById('state').value.trim(),
+                password: ""
+            };
+            
+            const customerResponse = await fetch(`${API_URL}/customers/guest`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(customerData)
+            });
+            
+            if (!customerResponse.ok) {
+                throw new Error('Customer creation failed');
+            }
+            
+            const customerResult = await customerResponse.json();
+            const customerId = customerResult.customer_id;
+            console.log('[pay] customer created with id:', customerId);
+            
+            // Create order with the generated payment reference
+            const orderData = {
+                customer_id: customerId,
+                items: cart.items.map(item => ({
+                    product_id: item.product_id || item.id,
+                    product_name: item.product_name || item.name,
+                    quantity: item.quantity || 1,
+                    price_at_time: item.price,
+                    subtotal: item.subtotal
+                })),
+                subtotal: cart.subtotal,
+                delivery_fee: cart.delivery_fee,
+                total_amount: cart.total,
+                delivery_address: document.getElementById('address').value.trim(),
+                delivery_phone: document.getElementById('phone').value.trim(),
+                delivery_city: document.getElementById('city').value.trim(),
+                delivery_state: document.getElementById('state').value.trim(),
+                delivery_note: document.getElementById('note')?.value.trim() || "",
+                payment_reference: null
+            };
+            
+            const orderResponse = await fetch(`${API_URL}/orders/create`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(orderData)
+            });
+            
+            if (!orderResponse.ok) {
+                throw new Error('Order creation failed');
+            }
+            
+            const orderResult = await orderResponse.json();
+            const orderId = orderResult.order_id;
+            console.log('[pay] order created with id:', orderId);
+            
+            // Handle Paystack success callback asynchronously
+            const handlePaystackSuccess = async (response, orderId) => {
+                const paystackReference = response.reference;
+                console.log('[pay] Paystack reference:', paystackReference);
+
+                try {
+                    // Update the order with the real Paystack reference
+                    const patchResponse = await fetch(
+                        `${API_URL}/orders/${orderId}/payment-reference`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ payment_reference: paystackReference })
+                    });
+                    if (!patchResponse.ok) {
+                        console.error('[pay] Failed to update payment reference');
+                    }
+                } catch (err) {
+                    console.error('[pay] Error updating payment reference:', err);
+                }
+
+                // Now verify payment (order has correct reference)
+                createCustomerAndOrder(paystackReference, orderId);
+            };
+            
+            // Set up Paystack handler
             console.log('[pay] setting up Paystack handler...');
             const handler = PaystackPop.setup({
                 key: 'pk_test_abd78fdac041a5a82085a0aa0b504171b5a6f7d5',
@@ -459,15 +547,7 @@
                 channels: ['card'],
                 callback: function(response) {
                     console.log('[paystack] callback received:', response);
-                    if (response && response.reference) {
-                        console.log('[pay] payment success - reference:', response.reference);
-                        // Create customer and order after successful payment
-                        createCustomerAndOrder(response.reference);
-                    } else {
-                        console.warn('[pay] payment completed but no reference returned');
-                        alert('Payment completed but no reference returned. Contact support.');
-                        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Pay Now'; }
-                    }
+                    handlePaystackSuccess(response, orderId);
                 },
                 onClose: function() {
                     console.log('[pay] payment closed');
@@ -492,74 +572,19 @@
             }
             if (submitBtn) { 
                 submitBtn.disabled = false; 
-                submitBtn.textContent = 'Pay Now'; 
+                submitBtn.textContent = 'Pay Now';
             }
         }
     }
     
     // Create customer and order after successful payment
-    async function createCustomerAndOrder(paymentReference) {
+    async function createCustomerAndOrder(paymentReference, orderId) {
         try {
-            console.log('[createCustomerAndOrder] STARTED with reference:', paymentReference);
-            console.log('[pay] creating customer after payment...');
-            const customerData = {
-                email: document.getElementById('email').value.trim(),
-                phone: document.getElementById('phone').value.trim(),
-                first_name: document.getElementById('firstName').value.trim(),
-                last_name: document.getElementById('lastName').value.trim(),
-                address: document.getElementById('address').value.trim(),
-                city: document.getElementById('city').value.trim(),
-                state: document.getElementById('state').value.trim(),
-                password: ""
-            };
+            console.log('[createCustomerAndOrder] STARTED with reference:', paymentReference, 'orderId:', orderId);
+            console.log('[pay] verifying payment for existing order...');
             
-            const customerResponse = await fetch(`${API_URL}/customers/guest`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(customerData)
-            });
-
-            if (!customerResponse.ok) throw new Error('Customer creation failed');
-            const customerResult = await customerResponse.json();
-            const customerId = customerResult.customer_id;
-            
-            console.log('[pay] creating order after payment...');
-            const cart = getCartFromLocalStorage();
-            const orderData = {
-                customer_id: customerId,
-                items: cart.items.map(item => ({
-                    product_id: item.product_id || item.id,
-                    product_name: item.product_name || item.name,
-                    quantity: item.quantity || 1,
-                    price_at_time: item.price,
-                    subtotal: item.subtotal
-                })),
-                subtotal: cart.subtotal,
-                delivery_fee: cart.delivery_fee,
-                total_amount: cart.total,
-                delivery_address: document.getElementById('address').value.trim(),
-                delivery_phone: document.getElementById('phone').value.trim(),
-                delivery_city: document.getElementById('city').value.trim(),
-                delivery_state: document.getElementById('state').value.trim(),
-                delivery_note: document.getElementById('note')?.value.trim() || "",
-                payment_reference: paymentReference
-            };
-
-            console.log('[orders/create] sending payload:', JSON.stringify(orderData));
-
-            const orderResponse = await fetch(`${API_URL}/orders/create`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(orderData)
-            });
-            
-            if (!orderResponse.ok) throw new Error('Order creation failed');
-            const orderResult = await orderResponse.json();
-            console.log('[createCustomerAndOrder] order created:', orderResult);
-            console.log('[createCustomerAndOrder] order created, calling verifyPayment');
-
-            // Verify the payment and update order status (pass Paystack transaction reference)
-            await verifyPayment(paymentReference, orderResult.order_id);
+            // Verify the payment and update order status
+            await verifyPayment(paymentReference, orderId);
             
         } catch (error) {
             console.error('[pay] error creating customer/order:', error);
