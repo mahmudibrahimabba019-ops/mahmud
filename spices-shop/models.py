@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, Float, Boolean, Text, ForeignKey
+from sqlalchemy import CheckConstraint, Column, Integer, String, DateTime, Float, Boolean, Text, ForeignKey
 from sqlalchemy.orm import relationship
 from database import Base
 from datetime import datetime
@@ -77,6 +77,13 @@ class OrderItem(Base):
 class Product(Base):
     __tablename__ = "products"
 
+    __table_args__ = (
+        CheckConstraint(
+            'stock_quantity >= 0',
+            name='stock_quantity_non_negative'
+        ),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
     category = Column(String, nullable=True)
@@ -95,3 +102,18 @@ class Product(Base):
             'stock_quantity': self.stock_quantity,
             'low_stock_threshold': self.low_stock_threshold
         }
+
+
+# Stock change audit log
+class StockLog(Base):
+    __tablename__ = "stock_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    order_id = Column(Integer, nullable=True)
+    change_type = Column(String, nullable=False)
+    quantity_change = Column(Integer, nullable=False)
+    quantity_before = Column(Integer, nullable=False)
+    quantity_after = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    note = Column(String, nullable=True)

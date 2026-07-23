@@ -605,21 +605,38 @@ def update_product_stock(product_id: int, payload: dict, db: Session = Depends(g
         else:
             raise HTTPException(status_code=404, detail='Product not found')
 
+    old_qty = prod.stock_quantity
+
     if 'set' in payload:
         # Explicitly allow zero; reject negative set values
         try:
-            requested = int(payload.get('set', prod.stock_quantity))
+            new_qty = int(payload.get('set', prod.stock_quantity))
         except Exception:
             raise HTTPException(status_code=400, detail='Invalid set value')
-        if requested < 0:
+        if new_qty < 0:
             raise HTTPException(status_code=400, detail='Stock must be >= 0')
-        prod.stock_quantity = requested
     elif 'delta' in payload:
         delta = int(payload.get('delta', 0))
         # Apply delta but never allow negative final stock; clamp to 0
-        prod.stock_quantity = max(0, prod.stock_quantity + delta)
+        new_qty = max(0, old_qty + delta)
+    else:
+        new_qty = old_qty
+
+    prod.stock_quantity = new_qty
 
     db.add(prod)
+
+    log = models.StockLog(
+        product_id=prod.id,
+        order_id=None,
+        change_type="manual_increase" if new_qty > old_qty else "manual_decrease",
+        quantity_change=new_qty - old_qty,
+        quantity_before=old_qty,
+        quantity_after=new_qty,
+        note="Manual admin adjustment"
+    )
+    db.add(log)
+
     db.commit()
     return { 'message': 'Stock updated', 'product_id': prod.id, 'stock_quantity': prod.stock_quantity }
 
@@ -832,8 +849,20 @@ async def refund_order(order_id: int, db: Session = Depends(get_db)):
         for it in items:
             prod = db.query(models.Product).filter(models.Product.id == it.product_id).first()
             if prod:
+                qty_before = prod.stock_quantity
                 prod.stock_quantity += (it.quantity or 0)
                 db.add(prod)
+
+                log = models.StockLog(
+                    product_id=prod.id,
+                    order_id=order.id,
+                    change_type="refund",
+                    quantity_change=it.quantity or 0,
+                    quantity_before=qty_before,
+                    quantity_after=prod.stock_quantity,
+                    note=f"Refund: order {order.order_number}"
+                )
+                db.add(log)
             else:
                 print(f"[REFUND] Product {it.product_id} not found while restoring stock.")
 
@@ -981,15 +1010,12 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
         raise HTTPException(status_code=400, detail=f"Amount mismatch. Paid: ₦{paystack_amount_kobo/100}, Expected: ₦{order_amount_naira}")
 
     try:
+        # Update order status
         order.status = "processing"
         order.payment_status = "paid"
         db.add(order)
-        db.commit()
-    except Exception as e:
-        print('[ERROR] Could not update order status:', e)
-        raise HTTPException(status_code=500, detail="Failed to update order status")
 
-    try:
+        # Send email (non-critical, just prints)
         customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
         if customer:
             print(f"📧 SENDING EMAIL TO: {customer.email}")
@@ -999,23 +1025,46 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
         else:
             print('[DEBUG] No customer found for the order')
 
+        # Decrement stock
         items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).all()
         for it in items:
             prod = db.query(models.Product).filter(models.Product.id == it.product_id).first()
             if prod:
-                new_qty = max(0, prod.stock_quantity - (it.quantity or 0))
-                print(f"[STOCK] Reducing Product {prod.id} from {prod.stock_quantity} -> {new_qty}")
+                if prod.stock_quantity < (it.quantity or 0):
+                    raise Exception(
+                        f"Insufficient stock for {prod.name}: "
+                        f"need {it.quantity}, have {prod.stock_quantity}"
+                    )
+
+                old_qty = prod.stock_quantity
+                new_qty = max(0, old_qty - (it.quantity or 0))
+                print(f"[STOCK] Reducing Product {prod.id} from {old_qty} -> {new_qty}")
                 prod.stock_quantity = new_qty
                 db.add(prod)
+
+                log = models.StockLog(
+                    product_id=prod.id,
+                    order_id=order.id,
+                    change_type="sale",
+                    quantity_change=-(it.quantity or 0),
+                    quantity_before=old_qty,
+                    quantity_after=new_qty,
+                    note=f"Sale: order {order.order_number}"
+                )
+                db.add(log)
             else:
                 init_qty = max(0, 100 - (it.quantity or 0))
                 new_prod = models.Product(id=it.product_id, name=it.product_name, price=it.price_at_time, stock_quantity=init_qty, low_stock_threshold=10)
                 db.add(new_prod)
                 print(f"[STOCK] Created Product {it.product_id} with stock {init_qty}")
+
+        # ONE single commit — everything or nothing
         db.commit()
+
     except Exception as e:
-        print('[ERROR] Error in post-payment processing (email/stock):', e)
-        # Don't raise - payment is already verified and order status updated
+        db.rollback()
+        print(f'[ERROR] fulfill_order failed, rolling back: {e}')
+        raise HTTPException(status_code=500, detail="Order fulfillment failed — please contact support")
 
     return paystack_response or {"status": "success"}
 
