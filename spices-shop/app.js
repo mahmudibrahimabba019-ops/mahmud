@@ -57,7 +57,16 @@ class Cart {
     }
 
     removeItem(productId) {
-        this.items = this.items.filter(item => item.product_id !== productId);
+        console.log('[removeItem] items before:',
+            JSON.stringify(this.items.map(i => ({
+                id: i.id, product_id: i.product_id
+            }))));
+        console.log('[removeItem] filtering for:', productId,
+            typeof productId);
+        this.items = this.items.filter(item => {
+            const id = item.product_id || item.id;
+            return String(id) !== String(productId);
+        });
         this.saveCart();
     }
 
@@ -264,6 +273,8 @@ function updateQuantity(productId, newQuantity) {
 }
 
 function removeFromCart(productId) {
+    console.log('[remove] called with productId:', productId,
+        'type:', typeof productId);
     cart.removeItem(productId);
     renderCart();
 }

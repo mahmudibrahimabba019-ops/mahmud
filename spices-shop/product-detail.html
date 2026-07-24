@@ -27,7 +27,9 @@
 </head>
 <body>
   <div class="container">
-    <a class="back-btn" href="catalog.html">← Back to Products</a>
+    <a class="back-btn" href="#" onclick="goBack(); return false;">
+      ← Back to Products
+    </a>
 
     <div id="product" class="product-wrap" aria-live="polite">
       <div class="image-col">
@@ -55,6 +57,11 @@
     import PRODUCT_DETAILS from './product-data.js';
 
     const API_BASE = 'http://127.0.0.1:8001';
+
+    window.goBack = function() {
+      const lastCategory = localStorage.getItem('lastCategory') || 'spices';
+      window.location.href = `catalog.html?category=${encodeURIComponent(lastCategory)}`;
+    };
 
     function getQueryParam(name){ const params = new URLSearchParams(window.location.search); return params.get(name); }
 

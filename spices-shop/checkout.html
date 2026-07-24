@@ -226,49 +226,49 @@
           <h2>Checkout</h2>
           <div id="message" class="message"></div>
           <div id="paymentResult" style="display:none; margin-bottom:16px;"></div>
-          <form id="checkoutForm">
+          <form id="checkoutForm" autocomplete="off">
                 <div class="form-group">
                     <label>Email *</label>
-                    <input type="email" id="email" required placeholder="customer@example.com">
+                    <input type="email" id="email" autocomplete="off" required placeholder="customer@example.com">
                 </div>
                 
                 <div class="form-group">
                     <label>Phone Number *</label>
-                    <input type="tel" id="phone" required placeholder="08012345678">
+                    <input type="tel" id="phone" autocomplete="off" required placeholder="08012345678">
                 </div>
                 
                 <div class="row">
                     <div class="form-group">
                         <label>First Name *</label>
-                        <input type="text" id="firstName" required placeholder="Aisha">
+                        <input type="text" id="firstName" autocomplete="new-password" required placeholder="Aisha">
                     </div>
                     
                     <div class="form-group">
                         <label>Last Name *</label>
-                        <input type="text" id="lastName" required placeholder="Mohammed">
+                        <input type="text" id="lastName" autocomplete="new-password" required placeholder="Mohammed">
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label>Delivery Address *</label>
-                    <textarea id="address" rows="2" required placeholder="No 15, Ahmadu Bello Way"></textarea>
+                    <textarea id="address" autocomplete="off" rows="2" required placeholder="No 15, Ahmadu Bello Way"></textarea>
                 </div>
                 
                 <div class="row">
                     <div class="form-group">
                         <label>City *</label>
-                        <input type="text" id="city" required placeholder="Kaduna">
+                        <input type="text" id="city" autocomplete="off" required placeholder="Kaduna">
                     </div>
                     
                     <div class="form-group">
                         <label>State *</label>
-                        <input type="text" id="state" required placeholder="Kaduna">
+                        <input type="text" id="state" autocomplete="off" required placeholder="Kaduna">
                     </div>
                 </div>
                 
                 <div class="form-group">
                     <label>Delivery Notes (Optional)</label>
-                    <textarea id="note" rows="2" placeholder="Call before delivery, leave with neighbor, etc."></textarea>
+                    <textarea id="note" autocomplete="off" rows="2" placeholder="Call before delivery, leave with neighbor, etc."></textarea>
                 </div>
                 
                 <button type="button" id="submitBtn" onclick="payWithPaystack()">Pay Now</button>
@@ -491,6 +491,8 @@
                 subtotal: cart.subtotal,
                 delivery_fee: cart.delivery_fee,
                 total_amount: cart.total,
+                first_name: document.getElementById('firstName').value.trim(),
+                last_name: document.getElementById('lastName').value.trim(),
                 delivery_address: document.getElementById('address').value.trim(),
                 delivery_phone: document.getElementById('phone').value.trim(),
                 delivery_city: document.getElementById('city').value.trim(),

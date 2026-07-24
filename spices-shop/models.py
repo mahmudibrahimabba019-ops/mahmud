@@ -43,6 +43,7 @@ class Order(Base):
     payment_reference = Column(String, nullable=True)
     
     # Delivery info
+    delivery_name = Column(String, nullable=True)
     delivery_address = Column(Text)
     delivery_phone = Column(String)
     delivery_city = Column(String)

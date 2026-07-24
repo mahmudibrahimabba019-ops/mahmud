@@ -839,20 +839,17 @@ a.btn-view:visited, a.view-details-btn:visited, a.btn-primary:visited {
 }
 
 .remove-btn {
-    background: #D32F2F;
-    color: var(--white);
+    background-color: #dc3545;
+    color: white;
     border: none;
-    padding: var(--spacing-xs) var(--spacing-md);
-    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: var(--font-size-sm);
-    font-weight: 600;
-    transition: all 0.3s ease;
+    font-size: 0.85rem;
 }
 
 .remove-btn:hover {
-    background: #B71C1C;
-    box-shadow: var(--shadow-md);
+    background-color: #c82333;
 }
 
 .cart-summary {
@@ -2507,18 +2504,17 @@ section { padding-top: var(--spacing-xl); padding-bottom: var(--spacing-xl); }
 }
 
 .remove-btn {
-    background: var(--danger);
-    color: var(--white);
+    background-color: #dc3545;
+    color: white;
     border: none;
-    padding: var(--spacing-xs) var(--spacing-sm);
-    border-radius: var(--radius-md);
+    padding: 6px 12px;
+    border-radius: 4px;
     cursor: pointer;
-    font-size: var(--font-size-sm);
-    transition: all 0.3s ease;
+    font-size: 0.85rem;
 }
 
 .remove-btn:hover {
-    background: #ff5252;
+    background-color: #c82333;
 }
 
 .cart-summary {

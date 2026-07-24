@@ -81,6 +81,17 @@
         let ALL_PRODUCTS = [];
         let currentCategory = 'spices';
 
+        function updateCatalogCartCount() {
+            const cartData = JSON.parse(localStorage.getItem('cart') || '{}');
+            const count = (cartData.items || []).reduce(
+                (c, i) => c + (i.quantity || 0),
+                0
+            );
+            document.querySelectorAll('#cart-count').forEach(
+                el => el.textContent = count
+            );
+        }
+
         function showMessage(msg) {
             document.getElementById('products-grid').innerHTML = `<div class="no-results">${msg}</div>`;
         }
@@ -144,11 +155,31 @@
         }
 
         document.addEventListener('DOMContentLoaded', ()=>{
+            updateCatalogCartCount();
+
+            const savedCategory = localStorage.getItem('lastCategory');
+            const urlParams = new URLSearchParams(window.location.search);
+            const categoryParam = urlParams.get('category');
+
+            if (categoryParam) {
+                currentCategory = categoryParam;
+                localStorage.setItem('lastCategory', categoryParam);
+            } else if (savedCategory) {
+                currentCategory = savedCategory;
+            }
+
             document.querySelectorAll('.filter-btn').forEach(btn=>{
+                if (btn.getAttribute('data-filter') === currentCategory) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+
                 btn.addEventListener('click', ()=>{
                     document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
                     btn.classList.add('active');
                     currentCategory = btn.getAttribute('data-filter');
+                    localStorage.setItem('lastCategory', currentCategory);
                     applyCategoryFilter();
                 });
             });

@@ -15,6 +15,10 @@ import os
 import hmac
 import hashlib
 import json
+import smtplib
+import ssl
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from dotenv import load_dotenv
 
 # Load environment variables (including ADMIN_PASSWORD)
@@ -91,6 +95,8 @@ class OrderCreate(BaseModel):
     delivery_state: str
     delivery_note: str = None
     payment_reference: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 class OrderResponse(BaseModel):
     id: int
@@ -233,7 +239,6 @@ def create_guest_customer(customer: CustomerCreate, db: Session = Depends(get_db
     ).first()
     
     if existing_customer:
-        # Customer exists, return their ID
         return MessageResponse(
             message="Welcome back! Using your existing account.",
             customer_id=existing_customer.id
@@ -330,6 +335,7 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
         status="pending",
         payment_status="unpaid",
         payment_reference=order.payment_reference,
+        delivery_name=f"{order.first_name or ''} {order.last_name or ''}".strip() or None,
         delivery_address=order.delivery_address,
         delivery_phone=order.delivery_phone,
         delivery_city=order.delivery_city,
@@ -687,7 +693,11 @@ def admin_get_all_orders(
             models.Customer.id == order.customer_id
         ).first()
         
-        customer_name = f"{customer.first_name} {customer.last_name}" if customer else "Unknown"
+        customer_name = (
+            order.delivery_name
+            or (f"{customer.first_name} {customer.last_name}".strip()
+                if customer else "Unknown")
+        )
         customer_phone = customer.phone if customer else "Unknown"
         
         orders_list.append({
@@ -736,11 +746,17 @@ def admin_get_order_details(order_id: int, db: Session = Depends(get_db)):
             "subtotal": item.subtotal
         })
     
+    name = (
+        order.delivery_name
+        or (f"{customer.first_name} {customer.last_name}".strip()
+            if customer else "Unknown")
+    )
+
     return {
         "order_number": order.order_number,
         "created_at": str(order.created_at),
         "customer": {
-            "name": f"{customer.first_name} {customer.last_name}" if customer else "Unknown",
+            "name": name,
             "email": customer.email if customer else "Unknown",
             "phone": customer.phone if customer else "Unknown",
             "address": customer.address if customer else "Unknown",
@@ -938,59 +954,261 @@ def get_public_key():
 
 
 def send_order_confirmation_email(customer_email: str, order_data: dict):
-    """
-    Simulate sending an order confirmation email by printing to console.
-    """
-    try:
-        print(f"[EMAIL FUNC] send_order_confirmation_email called for: {customer_email}")
-        print(f"SENDING EMAIL TO: {customer_email}")
-        print("========================================")
-        print("HALARI HOUSE OF SEASONING")
-        print(f"Order Confirmation #{order_data.get('order_number', '')}")
-        print("========================================\n")
+    """Send a real order confirmation email via Gmail SMTP."""
+    sender_email = os.getenv("GMAIL_SENDER")
+    app_password = os.getenv("GMAIL_APP_PASSWORD")
 
-        print(f"Dear {order_data.get('customer_name', 'Customer')},\n")
-        print("Thank you for your order! Your payment was successful.\n")
-        print("ORDER SUMMARY:")
-        print("----------------------------------------")
+    if not sender_email or not app_password:
+        print("[EMAIL] Gmail credentials not configured — skipping email")
+        return
+
+    try:
+        subject = (
+            f"Order Confirmation #{order_data.get('order_number', '')} "
+            "- Halari House of Seasoning"
+        )
+
+        plain_text = f"""
+Dear {order_data.get('customer_name', 'Customer')},
+
+Thank you for your order! Your payment was successful.
+
+ORDER SUMMARY:
+"""
 
         for item in order_data.get('items', []):
             name = item.get('product_name', 'Item')
             qty = item.get('quantity', 1)
             price = item.get('price', item.get('subtotal', 0))
-            # Format price as integer/₦ with comma
             try:
                 price_str = f"₦{int(price):,}"
             except Exception:
                 price_str = f"₦{price}"
-            print(f"{qty}x {name} - {price_str}")
+            plain_text += f"{qty}x {name} - {price_str}\n"
 
-        print("----------------------------------------\n")
         try:
             subtotal_str = f"₦{int(order_data.get('subtotal', 0)):,}"
-        except Exception:
-            subtotal_str = f"₦{order_data.get('subtotal', 0)}"
-        try:
-            delivery_fee_str = f"₦{int(order_data.get('delivery_fee', 3000)):,}"
-        except Exception:
-            delivery_fee_str = f"₦{order_data.get('delivery_fee', 3000)}"
-        try:
+            delivery_str = f"₦{int(order_data.get('delivery_fee', 3000)):,}"
             total_str = f"₦{int(order_data.get('total_amount', 0)):,}"
         except Exception:
-            total_str = f"₦{order_data.get('total_amount', 0)}"
+            subtotal_str = str(order_data.get('subtotal', 0))
+            delivery_str = str(order_data.get('delivery_fee', 3000))
+            total_str = str(order_data.get('total_amount', 0))
 
-        print(f"Subtotal: {subtotal_str}")
-        print(f"Delivery Fee: {delivery_fee_str}")
-        print(f"TOTAL PAID: {total_str}\n")
+        delivery_address = order_data.get('delivery_address', '')
+        delivery_city = order_data.get('delivery_city', '')
+        delivery_state = order_data.get('delivery_state', '')
 
-        print("DELIVERY ADDRESS:")
-        print(order_data.get('delivery_address', ''))
+        plain_text += f"""
+Subtotal: {subtotal_str}
+Delivery Fee: {delivery_str}
+TOTAL PAID: {total_str}
 
-        print("\nWe will begin processing your order shortly.\n")
-        print("Thank you for shopping with Halari House of Seasoning!")
-        print("========================================")
-    except Exception as e:
-        print('Failed to simulate sending email:', e)
+DELIVERY ADDRESS:
+{delivery_address}
+{delivery_city}, {delivery_state}
+
+We will begin processing your order shortly.
+Thank you for shopping with Halari House of Seasoning!
+"""
+
+        items_html = ""
+        for item in order_data.get('items', []):
+            name = item.get('product_name', 'Item')
+            qty = item.get('quantity', 1)
+            price = item.get('price', item.get('subtotal', 0))
+            try:
+                price_str = f"₦{int(price):,}"
+            except Exception:
+                price_str = f"₦{price}"
+            row_bg = "#ffffff" if order_data.get('items', []).index(item) % 2 == 0 else "#F5E6D3"
+            items_html += f"""
+                <tr style="background-color:{row_bg};">
+                  <td style="padding:10px 14px; color:#333;
+                             font-size:14px;">{name}</td>
+                  <td style="padding:10px 14px; color:#333;
+                             font-size:14px; text-align:center;">{qty}</td>
+                  <td style="padding:10px 14px; color:#333;
+                             font-size:14px; text-align:right;">{price_str}</td>
+                </tr>
+            """
+
+        html_body = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Confirmation</title>
+</head>
+<body style="margin:0; padding:0; background-color:#F5E6D3;
+             font-family: Arial, sans-serif;">
+
+  <table width="100%" cellpadding="0" cellspacing="0"
+         style="background-color:#F5E6D3; padding: 30px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0"
+               style="background-color:#ffffff; border-radius:12px;
+                      overflow:hidden;
+                      box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
+
+          <!-- HEADER -->
+          <tr>
+            <td style="background-color:#4A2C1A;
+                       padding: 40px 30px; text-align: center;">
+              <h1 style="color:#F5E6D3; margin:0; font-size:28px;
+                         letter-spacing:2px;">🌶️ HALARI</h1>
+              <p style="color:#F5E6D3; margin:8px 0 0 0; font-size:14px;
+                        letter-spacing:1px; opacity:0.85;">
+                HOUSE OF SEASONING
+              </p>
+            </td>
+          </tr>
+
+          <!-- SUCCESS BANNER -->
+          <tr>
+            <td style="background-color:#5a3a22; padding: 16px 30px;
+                       text-align:center;">
+              <p style="color:#F5E6D3; margin:0; font-size:15px;">
+                ✅ Payment Successful — Your order is confirmed!
+              </p>
+            </td>
+          </tr>
+
+          <!-- BODY -->
+          <tr>
+            <td style="padding: 30px;">
+
+              <p style="color:#4A2C1A; font-size:16px; margin:0 0 20px 0;">
+                Dear <strong>{order_data.get('customer_name', 'Customer')}</strong>,
+              </p>
+
+              <p style="color:#555; font-size:14px; line-height:1.6;">
+                Thank you for shopping with us! We have received your order
+                and will begin processing it shortly. Here is your
+                order summary:
+              </p>
+
+              <!-- ORDER NUMBER BOX -->
+              <div style="background:#F5E6D3; border-left: 4px solid #4A2C1A;
+                          padding: 14px 18px; border-radius: 6px;
+                          margin: 20px 0;">
+                <p style="margin:0; color:#4A2C1A; font-size:13px;
+                          letter-spacing:1px;">ORDER NUMBER</p>
+                <p style="margin:4px 0 0 0; color:#4A2C1A; font-size:20px;
+                          font-weight:bold;">
+                  #{order_data.get('order_number', '')}
+                </p>
+              </div>
+
+              <!-- ITEMS TABLE -->
+              <table width="100%" cellpadding="0" cellspacing="0"
+                     style="margin: 20px 0; border-collapse: collapse;
+                            border-radius: 8px; overflow:hidden;">
+                <tr style="background-color:#4A2C1A;">
+                  <th style="padding:10px 14px; color:#F5E6D3;
+                             text-align:left; font-size:13px;">Item</th>
+                  <th style="padding:10px 14px; color:#F5E6D3;
+                             text-align:center; font-size:13px;">Qty</th>
+                  <th style="padding:10px 14px; color:#F5E6D3;
+                             text-align:right; font-size:13px;">Price</th>
+                </tr>
+                {items_html}
+              </table>
+
+              <!-- TOTALS -->
+              <table width="100%" cellpadding="0" cellspacing="0"
+                     style="margin: 10px 0; border-collapse: collapse;">
+                <tr>
+                  <td style="padding:8px 0; color:#555; font-size:14px;">
+                    Subtotal
+                  </td>
+                  <td style="padding:8px 0; color:#555; font-size:14px;
+                             text-align:right;">{subtotal_str}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0; color:#555; font-size:14px;">
+                    Delivery Fee
+                  </td>
+                  <td style="padding:8px 0; color:#555; font-size:14px;
+                             text-align:right;">{delivery_str}</td>
+                </tr>
+                <tr style="border-top: 2px solid #4A2C1A;">
+                  <td style="padding:12px 0; color:#4A2C1A; font-size:16px;
+                             font-weight:bold;">
+                    Total Paid
+                  </td>
+                  <td style="padding:12px 0; color:#4A2C1A; font-size:16px;
+                             font-weight:bold; text-align:right;">{total_str}</td>
+                </tr>
+              </table>
+
+              <!-- DELIVERY ADDRESS -->
+              <div style="background:#F5E6D3; border-radius:8px;
+                          padding:16px 18px; margin: 20px 0;
+                          border: 1px solid #4A2C1A;">
+                <p style="margin:0 0 8px 0; color:#4A2C1A; font-size:13px;
+                          font-weight:bold; letter-spacing:1px;">
+                  📦 DELIVERY ADDRESS
+                </p>
+                <p style="margin:0; color:#4A2C1A; font-size:14px;
+                          line-height:1.6;">
+                  {delivery_address}<br>
+                  {delivery_city}, {delivery_state}
+                </p>
+              </div>
+
+              <p style="color:#555; font-size:14px; line-height:1.6;
+                        margin: 20px 0 0 0;">
+                If you have any questions about your order, please
+                don't hesitate to reach out to us. We are happy to help!
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- FOOTER -->
+          <tr>
+            <td style="background-color:#F5E6D3; padding: 24px 30px;
+                       text-align:center;
+                       border-top: 2px solid #4A2C1A;">
+              <p style="color:#4A2C1A; font-size:14px; margin:0 0 8px 0;
+                        font-weight:bold;">
+                🌶️ Halari House of Seasoning
+              </p>
+              <p style="color:#4A2C1A; font-size:12px; margin:0;
+                        opacity:0.7;">
+                Thank you for your order. We appreciate your business!
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+        """
+
+        message = MIMEMultipart("alternative")
+        message["Subject"] = subject
+        message["From"] = sender_email
+        message["To"] = customer_email
+        message.attach(MIMEText(plain_text, "plain", "utf-8"))
+        message.attach(MIMEText(html_body, "html", "utf-8"))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, context=context) as server:
+            server.login(sender_email, app_password)
+            server.sendmail(sender_email, customer_email, message.as_string())
+
+        print(f"[EMAIL] Order confirmation sent to {customer_email}")
+
+    except Exception as exc:
+        print(f"[EMAIL] Failed to send order confirmation: {exc}")
 
 
 def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_response: dict = None):
@@ -1015,15 +1233,37 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
         order.payment_status = "paid"
         db.add(order)
 
-        # Send email (non-critical, just prints)
+        # Send order confirmation email
         customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
         if customer:
-            print(f"📧 SENDING EMAIL TO: {customer.email}")
-            print(f"Order #{order.order_number} - Thank you for your purchase!")
-            print(f"Total paid: ₦{order.total_amount}")
-            print("We will begin processing your order shortly.")
+            items = db.query(models.OrderItem).filter(
+                models.OrderItem.order_id == order.id
+            ).all()
+
+            items_list = []
+            for it in items:
+                items_list.append({
+                    "product_name": it.product_name,
+                    "quantity": it.quantity,
+                    "price": it.price_at_time,
+                    "subtotal": it.subtotal
+                })
+
+            order_data = {
+                "order_number": order.order_number,
+                "customer_name": f"{customer.first_name} {customer.last_name}",
+                "items": items_list,
+                "subtotal": order.subtotal,
+                "delivery_fee": order.delivery_fee,
+                "total_amount": order.total_amount,
+                "delivery_address": order.delivery_address,
+                "delivery_city": order.delivery_city,
+                "delivery_state": order.delivery_state
+            }
+
+            send_order_confirmation_email(customer.email, order_data)
         else:
-            print('[DEBUG] No customer found for the order')
+            print("[EMAIL] No customer found; confirmation email skipped")
 
         # Decrement stock
         items = db.query(models.OrderItem).filter(models.OrderItem.order_id == order.id).all()
