@@ -543,7 +543,9 @@
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                         <div>
                             <h4>Customer Information</h4>
-                            <p><strong>Name:</strong> ${details.customer.name}</p>
+                            <p><strong>First Name:</strong> ${details.customer.first_name || ''}</p>
+                            <p><strong>Last Name:</strong> ${details.customer.last_name || ''}</p>
+                            <p><strong>Name:</strong> ${details.customer.name || ''}</p>
                             <p><strong>Email:</strong> ${details.customer.email}</p>
                             <p><strong>Phone:</strong> ${details.customer.phone}</p>
                         </div>

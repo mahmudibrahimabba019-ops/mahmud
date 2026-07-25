@@ -97,6 +97,7 @@ class OrderCreate(BaseModel):
     payment_reference: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
+    email: Optional[str] = None
 
 class OrderResponse(BaseModel):
     id: int
@@ -336,6 +337,9 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
         payment_status="unpaid",
         payment_reference=order.payment_reference,
         delivery_name=f"{order.first_name or ''} {order.last_name or ''}".strip() or None,
+        delivery_first_name=order.first_name,
+        delivery_last_name=order.last_name,
+        delivery_email=order.email,
         delivery_address=order.delivery_address,
         delivery_phone=order.delivery_phone,
         delivery_city=order.delivery_city,
@@ -756,19 +760,18 @@ def admin_get_order_details(order_id: int, db: Session = Depends(get_db)):
         "order_number": order.order_number,
         "created_at": str(order.created_at),
         "customer": {
-            "name": name,
-            "email": customer.email if customer else "Unknown",
-            "phone": customer.phone if customer else "Unknown",
-            "address": customer.address if customer else "Unknown",
-            "city": customer.city if customer else "Unknown",
-            "state": customer.state if customer else "Unknown"
+            "first_name": order.delivery_first_name or "",
+            "last_name": order.delivery_last_name or "",
+            "name": order.delivery_name or "Unknown",
+            "email": order.delivery_email or (customer.email if customer else "Unknown"),
+            "phone": order.delivery_phone or (customer.phone if customer else "Unknown"),
         },
         "delivery": {
             "address": order.delivery_address,
             "phone": order.delivery_phone,
             "city": order.delivery_city,
             "state": order.delivery_state,
-            "note": order.delivery_note
+            "note": order.delivery_note,
         },
         "items": items_list,
         "subtotal": order.subtotal,
