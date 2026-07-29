@@ -278,6 +278,25 @@
 
     <script>
         const API_URL = 'http://127.0.0.1:8001';
+
+        function adminHeaders(extra = {}) {
+            const token = sessionStorage.getItem('adminToken');
+            return {
+                'Content-Type': 'application/json',
+                'X-Admin-Token': token || '',
+                ...extra
+            };
+        }
+
+        function showLoginForm() {
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('dashboard').style.display = 'none';
+        }
+
+        function showDashboard() {
+            document.getElementById('loginForm').style.display = 'none';
+            document.getElementById('dashboard').style.display = 'block';
+        }
         
         async function login() {
             const username = document.getElementById('username').value;
@@ -294,8 +313,10 @@
                 const data = await response.json();
                 
                 if (response.ok) {
-                    document.getElementById('loginForm').style.display = 'none';
-                    document.getElementById('dashboard').style.display = 'block';
+                    if (data.token) {
+                        sessionStorage.setItem('adminToken', data.token);
+                    }
+                    showDashboard();
                     loadSummary();
                     loadAllOrders();
                     loadCustomers();
@@ -329,7 +350,7 @@
         
         async function loadSummary() {
             try {
-                const response = await fetch(`${API_URL}/admin/summary`);
+                const response = await fetch(`${API_URL}/admin/summary`, { headers: adminHeaders() });
                 const data = await response.json();
                 
                 // Update summary cards
@@ -399,7 +420,7 @@
 
                 const q = buildQuery(params);
                 const url = `${API_URL}/admin/orders${q ? '?' + q : ''}`;
-                const response = await fetch(url);
+                const response = await fetch(url, { headers: adminHeaders() });
                 const data = await response.json();
 
                 let html = '<table><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Status</th><th>Payment</th></tr>';
@@ -426,7 +447,7 @@
         
         async function loadCustomers() {
             try {
-                const response = await fetch(`${API_URL}/admin/customers`);
+                const response = await fetch(`${API_URL}/admin/customers`, { headers: adminHeaders() });
                 const data = await response.json();
                 
                 let html = '<table><tr><th>Name</th><th>Email</th><th>Phone</th><th>Orders</th><th>Total Spent</th></tr>';
@@ -498,7 +519,7 @@
         async function adjustStock(productId, delta) {
             try {
                 const resp = await fetch(`${API_URL}/admin/products/${productId}/stock`, {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    method: 'POST', headers: adminHeaders(),
                     body: JSON.stringify({ delta })
                 });
                 if (!resp.ok) throw new Error('Failed');
@@ -512,7 +533,7 @@
             if (isNaN(v)) return; 
             try {
                 const resp = await fetch(`${API_URL}/admin/products/${productId}/stock`, {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    method: 'POST', headers: adminHeaders(),
                     body: JSON.stringify({ set: v })
                 });
                 if (!resp.ok) throw new Error('Failed');
@@ -523,13 +544,13 @@
         async function viewOrderDetails(orderNumber) {
             try {
                 // Extract order ID from order number (you might need to adjust this)
-                const response = await fetch(`${API_URL}/admin/orders?order_number=${orderNumber}`);
+                const response = await fetch(`${API_URL}/admin/orders?order_number=${orderNumber}`, { headers: adminHeaders() });
                 const orders = await response.json();
                 const order = orders.orders.find(o => o.order_number === orderNumber);
                 
                 if (!order) return;
                 
-                const orderResponse = await fetch(`${API_URL}/admin/orders/${order.order_id}`);
+                const orderResponse = await fetch(`${API_URL}/admin/orders/${order.order_id}`, { headers: adminHeaders() });
                 const details = await orderResponse.json();
                 
                 let itemsHtml = '';
@@ -615,7 +636,7 @@
             try {
                 const response = await fetch(`${API_URL}/admin/orders/${orderId}/status`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: adminHeaders(),
                     body: JSON.stringify({ status, payment_status })
                 });
                 
@@ -648,7 +669,7 @@
             try {
                 const response = await fetch(`${API_URL}/admin/orders/${orderId}/refund`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: adminHeaders()
                 });
                 
                 if (response.ok) {
@@ -716,7 +737,7 @@
 
             try {
                 const resp = await fetch(`${API_URL}/admin/change-password`, {
-                    method: 'POST', headers: {'Content-Type':'application/json'},
+                    method: 'POST', headers: adminHeaders(),
                     body: JSON.stringify({ current_password: cur, new_password: nw })
                 });
                 const data = await resp.json();
@@ -732,6 +753,35 @@
                 msg.style.display = 'block'; msg.style.background = '#f8d7da'; msg.style.color = '#721c24'; msg.textContent = 'Could not connect to server';
             }
         }
+
+        async function logout() {
+            const token = sessionStorage.getItem('adminToken');
+            if (token) {
+                try {
+                    await fetch(`${API_URL}/admin/logout`, {
+                        method: 'POST',
+                        headers: adminHeaders()
+                    });
+                } catch (error) {
+                    console.error(error);
+                }
+            }
+            sessionStorage.removeItem('adminToken');
+            showLoginForm();
+        }
+
+        window.addEventListener('load', () => {
+            const token = sessionStorage.getItem('adminToken');
+            if (token) {
+                showDashboard();
+                loadSummary();
+                loadAllOrders();
+                loadCustomers();
+                loadInventory();
+            } else {
+                showLoginForm();
+            }
+        });
     </script>
 </body>
 </html>

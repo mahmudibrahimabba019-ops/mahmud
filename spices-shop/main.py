@@ -10,6 +10,7 @@ from datetime import datetime, date, timedelta
 from typing import List
 import random
 import string
+import secrets
 import httpx
 import os
 import hmac
@@ -25,6 +26,7 @@ from dotenv import load_dotenv
 load_dotenv()
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "halari_admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "spices2024")
+admin_tokens = set()
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -42,8 +44,8 @@ app.add_middleware(
     allow_headers=["*"],
 )  # <-- THIS WAS MISSING!
 
-# Serve images from the project root at /images
-app.mount("/images", StaticFiles(directory="."), name="images")
+# Serve images from the dedicated images folder at /images
+app.mount("/images", StaticFiles(directory="images"), name="images")
 
 # ============ PYDANTIC MODELS (Request/Response) ============
 
@@ -130,6 +132,7 @@ class AdminLogin(BaseModel):
 class AdminResponse(BaseModel):
     message: str
     logged_in: bool
+    token: Optional[str] = None
 
 class OrderStatusUpdate(BaseModel):
     status: str
@@ -465,12 +468,33 @@ def admin_login(login: AdminLogin):
     Simple admin login
     """
     if login.username == ADMIN_USERNAME and login.password == os.getenv('ADMIN_PASSWORD', 'spices2024'):
+        token = secrets.token_hex(32)
+        admin_tokens.add(token)
         return AdminResponse(
             message="Login successful! Welcome to Halari House admin.",
-            logged_in=True
+            logged_in=True,
+            token=token
         )
     else:
         raise HTTPException(status_code=401, detail="Invalid username or password")
+
+
+@app.post("/admin/logout")
+def admin_logout(request: Request):
+    token = request.headers.get("X-Admin-Token")
+    if token in admin_tokens:
+        admin_tokens.discard(token)
+    return {"message": "Logged out successfully"}
+
+
+def verify_admin_token(request: Request):
+    token = request.headers.get("X-Admin-Token")
+    if not token or token not in admin_tokens:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized — admin login required"
+        )
+    return token
 
 
 class ChangePasswordRequest(BaseModel):
@@ -509,7 +533,7 @@ def update_env_var(key: str, value: str, env_path: str = ".env"):
 
 
 @app.post('/admin/change-password')
-def admin_change_password(payload: ChangePasswordRequest):
+def admin_change_password(payload: ChangePasswordRequest, token: str = Depends(verify_admin_token)):
     """Allow admin to change their password (updates .env)."""
     stored = os.getenv('ADMIN_PASSWORD', 'spices2024')
     if payload.current_password != stored:
@@ -527,7 +551,7 @@ def admin_change_password(payload: ChangePasswordRequest):
 
 
 @app.get("/admin")
-def admin_home():
+def admin_home(token: str = Depends(verify_admin_token)):
     """
     Admin home - lists all available admin endpoints
     """
@@ -544,7 +568,7 @@ def admin_home():
 
 
 @app.get("/admin/summary")
-def admin_summary(db: Session = Depends(get_db)):
+def admin_summary(db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """
     Get summary dashboard data for admin
     """
@@ -601,7 +625,7 @@ def admin_summary(db: Session = Depends(get_db)):
 
 
 @app.post("/admin/products/{product_id}/stock")
-def update_product_stock(product_id: int, payload: dict, db: Session = Depends(get_db)):
+def update_product_stock(product_id: int, payload: dict, db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """Update stock for a product. Payload: { "delta": 10 } or { "set": 50 }"""
     prod = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not prod:
@@ -652,7 +676,7 @@ def update_product_stock(product_id: int, payload: dict, db: Session = Depends(g
 
 
 @app.get('/admin/low-stock')
-def get_low_stock(db: Session = Depends(get_db)):
+def get_low_stock(db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     prods = db.query(models.Product).filter(models.Product.stock_quantity < models.Product.low_stock_threshold).all()
     return [p.to_dict() for p in prods]
 
@@ -662,7 +686,8 @@ def admin_get_all_orders(
     from_date: str = None,
     to_date: str = None,
     today: bool = False,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    token: str = Depends(verify_admin_token)
 ):
     """
     Get all orders (admin only)
@@ -723,7 +748,7 @@ def admin_get_all_orders(
 
 
 @app.get("/admin/orders/{order_id}")
-def admin_get_order_details(order_id: int, db: Session = Depends(get_db)):
+def admin_get_order_details(order_id: int, db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """
     Get complete order details with all items (admin only)
     """
@@ -787,6 +812,7 @@ def admin_update_order_status(
     order_id: int,
     update: OrderStatusUpdate,
     db: Session = Depends(get_db),
+    token: str = Depends(verify_admin_token),
 ):
     """
     Update order status (admin only)
@@ -815,7 +841,7 @@ def admin_update_order_status(
 
 
 @app.post("/admin/orders/{order_id}/refund")
-async def refund_order(order_id: int, db: Session = Depends(get_db)):
+async def refund_order(order_id: int, db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """
     Refund a paid order with Paystack and restore stock.
     """
@@ -903,7 +929,7 @@ async def refund_order(order_id: int, db: Session = Depends(get_db)):
 
 
 @app.get("/admin/customers")
-def admin_get_all_customers(db: Session = Depends(get_db)):
+def admin_get_all_customers(db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """
     Get all customers with their order history (admin only)
     """
@@ -1254,7 +1280,11 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
 
             order_data = {
                 "order_number": order.order_number,
-                "customer_name": f"{customer.first_name} {customer.last_name}",
+                "customer_name": (
+                    order.delivery_name
+                    or f"{order.delivery_first_name or ''} {order.delivery_last_name or ''}".strip()
+                    or (f"{customer.first_name} {customer.last_name}".strip() if customer else "Customer")
+                ),
                 "items": items_list,
                 "subtotal": order.subtotal,
                 "delivery_fee": order.delivery_fee,
