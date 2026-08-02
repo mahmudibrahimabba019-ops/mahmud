@@ -36,13 +36,25 @@ app = FastAPI(
     description="Welcome to Halari House of Seasoning - Your premier destination for authentic Nigerian spices, herbs, and specialty yaji blends. Bringing flavor to your kitchen!"
 )
 
-# Allow your frontend to connect - FIXED: Added missing closing parenthesis
+# Allowed origins — add your production domain when you deploy
+allowed_origins = [
+    "http://127.0.0.1:3000",      # local frontend dev server
+    "http://localhost:3000",       # local alternative
+    "http://127.0.0.1:8001",      # local direct access
+]
+
+# Read production domain from environment if set
+production_url = os.getenv("FRONTEND_URL")
+if production_url:
+    allowed_origins.append(production_url)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
-    allow_methods=["*"],
-    allow_headers=["*"],
-)  # <-- THIS WAS MISSING!
+    allow_origins=allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Admin-Token", "Authorization"],
+)
 
 # Serve images from the dedicated images folder at /images
 app.mount("/images", StaticFiles(directory="images"), name="images")
