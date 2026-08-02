@@ -328,14 +328,48 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
         available = prod_db.stock_quantity if prod_db else 100
         if available < item.quantity:
             raise HTTPException(status_code=400, detail=f"Sorry, only {available} units of {item.product_name} available")
-    
+
+    # Recalculate prices server-side from database
+    calculated_subtotal = 0.0
+    validated_items = []
+
+    for item in order.items:
+        prod_db = db.query(models.Product).filter(
+            models.Product.id == item.product_id
+        ).first()
+        if not prod_db:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Product {item.product_id} not found"
+            )
+        real_price = prod_db.price
+        real_subtotal = real_price * item.quantity
+        calculated_subtotal += real_subtotal
+        validated_items.append({
+            "product_id": item.product_id,
+            "product_name": prod_db.name,
+            "quantity": item.quantity,
+            "price_at_time": real_price,
+            "subtotal": real_subtotal
+        })
+
+    delivery_fee = 3000.0
+    calculated_total = calculated_subtotal + delivery_fee
+
+    if abs(calculated_total - order.total_amount) > 1.0:
+        print(f"[SECURITY] Price mismatch: frontend={order.total_amount}, server={calculated_total}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Order total mismatch. Expected ₦{calculated_total}, got ₦{order.total_amount}. Please refresh and try again."
+        )
+
     # Create the order
     db_order = models.Order(
         order_number=order_number,
         customer_id=order.customer_id,
-        subtotal=order.subtotal,
-        delivery_fee=order.delivery_fee,
-        total_amount=order.total_amount,
+        subtotal=calculated_subtotal,
+        delivery_fee=delivery_fee,
+        total_amount=calculated_total,
         status="pending",
         payment_status="unpaid",
         payment_reference=order.payment_reference,
@@ -356,14 +390,14 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     db.refresh(db_order)
     
     # Add order items
-    for item in order.items:
+    for item in validated_items:
         db_item = models.OrderItem(
             order_id=db_order.id,
-            product_id=item.product_id,
-            product_name=item.product_name,
-            quantity=item.quantity,
-            price_at_time=item.price_at_time,
-            subtotal=item.subtotal
+            product_id=item["product_id"],
+            product_name=item["product_name"],
+            quantity=item["quantity"],
+            price_at_time=item["price_at_time"],
+            subtotal=item["subtotal"]
         )
         db.add(db_item)
     
@@ -453,10 +487,26 @@ def update_payment_reference(order_id: int, update: PaymentReferenceUpdate, db: 
     order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
-    
+
+    if order.payment_status != "unpaid":
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot update reference: order is already paid or failed"
+        )
+
+    existing = db.query(models.Order).filter(
+        models.Order.payment_reference == update.payment_reference,
+        models.Order.id != order_id
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=400,
+            detail="This payment reference is already attached to another order"
+        )
+
     order.payment_reference = update.payment_reference
     db.commit()
-    
+
     return {"message": "Payment reference updated"}
 
 
