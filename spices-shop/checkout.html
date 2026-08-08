@@ -498,8 +498,7 @@
                 delivery_phone: document.getElementById('phone').value.trim(),
                 delivery_city: document.getElementById('city').value.trim(),
                 delivery_state: document.getElementById('state').value.trim(),
-                delivery_note: document.getElementById('note')?.value.trim() || "",
-                payment_reference: null
+                delivery_note: document.getElementById('note')?.value.trim() || ""
             };
             
             const orderResponse = await fetch(`${API_URL}/orders/create`, {
@@ -514,30 +513,15 @@
             
             const orderResult = await orderResponse.json();
             const orderId = orderResult.order_id;
+            const paymentReference = orderResult.payment_reference;
             console.log('[pay] order created with id:', orderId);
+            console.log('[pay] server reference:', paymentReference);
             
             // Handle Paystack success callback asynchronously
             const handlePaystackSuccess = async (response, orderId) => {
-                const paystackReference = response.reference;
-                console.log('[pay] Paystack reference:', paystackReference);
-
-                try {
-                    // Update the order with the real Paystack reference
-                    const patchResponse = await fetch(
-                        `${API_URL}/orders/${orderId}/payment-reference`, {
-                        method: 'PATCH',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ payment_reference: paystackReference })
-                    });
-                    if (!patchResponse.ok) {
-                        console.error('[pay] Failed to update payment reference');
-                    }
-                } catch (err) {
-                    console.error('[pay] Error updating payment reference:', err);
-                }
-
-                // Now verify payment (order has correct reference)
-                createCustomerAndOrder(paystackReference, orderId);
+                console.log('[pay] Payment successful, reference:',
+                            response.reference);
+                createCustomerAndOrder(response.reference, orderId);
             };
             
             // Set up Paystack handler
@@ -548,6 +532,7 @@
                 amount: amountInKobo,
                 currency: 'NGN',
                 channels: ['card'],
+                ref: paymentReference,
                 callback: function(response) {
                     console.log('[paystack] callback received:', response);
                     handlePaystackSuccess(response, orderId);
@@ -618,11 +603,6 @@
 
             if (data && data.data && data.data.status === 'success') {
                 console.log('[verify] payment successful! updating order status...');
-
-                // Update order status to processing/paid
-                const updateUrl = `${API_URL}/orders/${orderId}/status?status=processing&payment_status=paid`;
-                console.log('[verify] PUT', updateUrl);
-                await fetch(updateUrl, { method: 'PUT' });
 
                 // Prepare order data for success page
                 const cart = getCartFromLocalStorage();

@@ -11,6 +11,7 @@ from typing import List
 import random
 import string
 import secrets
+import uuid
 import httpx
 import os
 import hmac
@@ -134,6 +135,7 @@ class MessageResponse(BaseModel):
     customer_id: int = None
     order_id: int = None
     order_number: str = None
+    payment_reference: Optional[str] = None
 
 # ============ ADMIN MODELS ============
 
@@ -334,6 +336,7 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     
     # Generate unique order number
     order_number = generate_order_number()
+    payment_ref = f"HHS-{uuid.uuid4().hex[:12].upper()}"
     # Check stock availability for each item before creating order
     for item in order.items:
         prod_db = db.query(models.Product).filter(models.Product.id == item.product_id).first()
@@ -384,7 +387,7 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
         total_amount=calculated_total,
         status="pending",
         payment_status="unpaid",
-        payment_reference=order.payment_reference,
+        payment_reference=payment_ref,
         delivery_name=f"{order.first_name or ''} {order.last_name or ''}".strip() or None,
         delivery_first_name=order.first_name,
         delivery_last_name=order.last_name,
@@ -418,7 +421,8 @@ def create_order(order: OrderCreate, db: Session = Depends(get_db)):
     return MessageResponse(
         message="Order created successfully!",
         order_id=db_order.id,
-        order_number=db_order.order_number
+        order_number=db_order.order_number,
+        payment_reference=payment_ref
     )
 
 
@@ -470,24 +474,6 @@ def get_customer_orders(customer_id: int, db: Session = Depends(get_db)):
     ).order_by(models.Order.created_at.desc()).all()
     
     return orders
-
-
-@app.put("/orders/{order_id}/status")
-def update_order_status(order_id: int, status: str, payment_status: str = None, db: Session = Depends(get_db)):
-    """
-    Update order status (for admin use)
-    """
-    order = db.query(models.Order).filter(models.Order.id == order_id).first()
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    
-    order.status = status
-    if payment_status:
-        order.payment_status = payment_status
-    
-    db.commit()
-    
-    return {"message": f"Order {order.order_number} updated to {status}"}
 
 
 @app.patch("/orders/{order_id}/payment-reference")
