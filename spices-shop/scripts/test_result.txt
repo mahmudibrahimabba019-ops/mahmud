@@ -1,5 +1,0 @@
-Starting test
-Customer create response: {"message": "Customer created successfully! You can now proceed to payment.", "customer_id": 20, "order_id": null, "order_number": null}
-Order create response: {"message": "Order created successfully!", "customer_id": null, "order_id": 65, "order_number": "HHS-2026-5762"}
-Fetched order: {"id": 65, "order_number": "HHS-2026-5762", "customer_id": 20, "subtotal": 8000.0, "delivery_fee": 3000.0, "total_amount": 11000.0, "status": "pending", "payment_status": "unpaid", "created_at": "2026-06-24T04:55:40.564110", "items": [{"product_id": 1, "product_name": "All spice", "quantity": 1, "price": 8000.0, "subtotal": 8000.0}]}
-Persisted payment_reference: None

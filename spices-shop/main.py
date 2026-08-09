@@ -1,5 +1,8 @@
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -36,6 +39,9 @@ app = FastAPI(
     title="Halari House of Seasoning",
     description="Welcome to Halari House of Seasoning - Your premier destination for authentic Nigerian spices, herbs, and specialty yaji blends. Bringing flavor to your kitchen!"
 )
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Allowed origins — add your production domain when you deploy
 allowed_origins = [
@@ -247,7 +253,8 @@ def get_products_by_category(category: str):
 # ============ CUSTOMER ENDPOINTS ============
 
 @app.post("/customers/guest", response_model=MessageResponse)
-def create_guest_customer(customer: CustomerCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_guest_customer(request: Request, customer: CustomerCreate, db: Session = Depends(get_db)):
     """
     Create a new customer (guest checkout - no password required)
     """
@@ -323,12 +330,13 @@ def generate_order_number():
 
 
 @app.post("/orders/create", response_model=MessageResponse)
-def create_order(order: OrderCreate, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def create_order(request: Request, order: OrderCreate, db: Session = Depends(get_db)):
     """
     Create a new order from cart
     """
     print(f"[DEBUG] Received payment_reference: {repr(order.payment_reference)}")
-    print(f"[DEBUG] Full received order payload: {order.dict()}")
+    print(f"[DEBUG] Order received - customer_id: {order.customer_id}, items: {len(order.items)}, total: {order.total_amount}")
     # Check if customer exists
     customer = db.query(models.Customer).filter(models.Customer.id == order.customer_id).first()
     if not customer:
@@ -511,7 +519,8 @@ def update_payment_reference(order_id: int, update: PaymentReferenceUpdate, db: 
 # ============ ADMIN ENDPOINTS ============
 
 @app.post("/admin/login", response_model=AdminResponse)
-def admin_login(login: AdminLogin):
+@limiter.limit("5/minute")
+def admin_login(request: Request, login: AdminLogin):
     """
     Simple admin login
     """
@@ -1282,7 +1291,7 @@ Thank you for shopping with Halari House of Seasoning!
             server.login(sender_email, app_password)
             server.sendmail(sender_email, customer_email, message.as_string())
 
-        print(f"[EMAIL] Order confirmation sent to {customer_email}")
+        print(f"[EMAIL] Order confirmation sent successfully")
 
     except Exception as exc:
         print(f"[EMAIL] Failed to send order confirmation: {exc}")
@@ -1391,7 +1400,8 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
 
 
 @app.get("/api/verify-payment/{reference}")
-async def verify_payment(reference: str, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+async def verify_payment(request: Request, reference: str, db: Session = Depends(get_db)):
     """
     Verify payment with Paystack
     """
@@ -1442,6 +1452,7 @@ async def verify_payment(reference: str, db: Session = Depends(get_db)):
 
 
 @app.post("/webhook/paystack")
+@limiter.limit("30/minute")
 async def paystack_webhook(request: Request, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     """Handle Paystack webhook events."""
     raw_body = await request.body()

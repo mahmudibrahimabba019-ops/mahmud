@@ -1,5 +1,8 @@
 .env
-   __pycache__/
-   *.pyc
-   *.db
-   scripts/test_result.txt
+__pycache__/
+*.pyc
+halari_spices.db
+*.db
+venv/
+backend/venv/
+scripts/test_result.txt
