@@ -173,6 +173,50 @@
             padding: 2px;
             box-shadow: 0 0 0 1px rgba(0,0,0,0.03) inset;
         }
+
+        .password-field {
+            position: relative;
+        }
+
+        .password-field input {
+            padding-right: 44px;
+        }
+
+        .password-toggle {
+            position: absolute;
+            top: 8px;
+            right: 0;
+            width: 44px;
+            height: 42px;
+            margin: 0;
+            padding: 10px;
+            background: transparent;
+            color: #4A2C1A;
+        }
+
+        .password-toggle:hover {
+            background: transparent;
+            color: #6B3F2A;
+        }
+
+        .password-toggle svg {
+            display: block;
+            width: 20px;
+            height: 20px;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+
+        .password-toggle .eye-slash {
+            display: block;
+        }
+
+        .password-toggle[aria-pressed="true"] .eye-slash {
+            display: none;
+        }
         
         .status-paid { background: #d4edda; color: #155724; }
         .status-unpaid { background: #f8d7da; color: #721c24; }
@@ -195,10 +239,10 @@
 </head>
 <body>
     <!-- Login Form -->
-    <div class="login-container" id="loginForm">
+    <div class="login-container" id="loginForm" autocomplete="off">
         <h2>Halari House Admin</h2>
-        <input type="text" id="username" placeholder="Username" value="halari_admin">
-        <input type="password" id="password" placeholder="Password" value="spices2024">
+        <input type="text" id="username" placeholder="Username" value="halari_admin" autocomplete="off">
+        <input type="password" id="password" placeholder="Password" autocomplete="new-password">
         <button onclick="login()">Login</button>
         <div id="loginError" class="error-message" style="display: none;"></div>
     </div>
@@ -262,9 +306,24 @@
             <div style="max-width:480px;background:#F5E6D3;padding:18px;border-radius:8px;">
                 <h4>Change Password</h4>
                 <div id="changePwdMsg" style="margin-bottom:10px;display:none;padding:8px;border-radius:6px;"></div>
-                <input type="password" id="currentPassword" placeholder="Current Password">
-                <input type="password" id="newPassword" placeholder="New Password (min 6 chars)">
-                <input type="password" id="confirmPassword" placeholder="Confirm New Password">
+                <div class="password-field">
+                    <input type="password" id="currentPassword" placeholder="Current Password">
+                    <button type="button" class="password-toggle" aria-label="Show current password" aria-pressed="false" onclick="togglePasswordVisibility('currentPassword', this)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle><path class="eye-slash" d="M3 3l18 18"></path></svg>
+                    </button>
+                </div>
+                <div class="password-field">
+                    <input type="password" id="newPassword" placeholder="New Password (min 6 chars)">
+                    <button type="button" class="password-toggle" aria-label="Show new password" aria-pressed="false" onclick="togglePasswordVisibility('newPassword', this)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle><path class="eye-slash" d="M3 3l18 18"></path></svg>
+                    </button>
+                </div>
+                <div class="password-field">
+                    <input type="password" id="confirmPassword" placeholder="Confirm New Password">
+                    <button type="button" class="password-toggle" aria-label="Show confirm password" aria-pressed="false" onclick="togglePasswordVisibility('confirmPassword', this)">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"></path><circle cx="12" cy="12" r="3"></circle><path class="eye-slash" d="M3 3l18 18"></path></svg>
+                    </button>
+                </div>
                 <button onclick="changePassword()">Update Password</button>
             </div>
         </div>
@@ -278,6 +337,10 @@
 
     <script>
         const API_URL = 'http://127.0.0.1:8001';
+
+        window.addEventListener('load', () => {
+            document.getElementById('password').value = '';
+        });
 
         function adminHeaders(extra = {}) {
             const token = sessionStorage.getItem('adminToken');
@@ -298,6 +361,47 @@
             document.getElementById('dashboard').style.display = 'block';
         }
         
+                // Inactivity auto-logout
+                const INACTIVITY_LIMIT = 300000; // 5 minutes in ms
+                let inactivityTimer = null;
+                const _adminActivityListener = () => resetInactivityTimer();
+                const _visibilityListener = () => {
+                    if (document.hidden) {
+                        const token = sessionStorage.getItem('adminToken');
+                        if (token) {
+                            try { alert('You were logged out because you left the admin tab. Please log in again.'); } catch(e) {}
+                            logout();
+                        }
+                    }
+                };
+
+                function resetInactivityTimer() {
+                    if (inactivityTimer) clearTimeout(inactivityTimer);
+                    inactivityTimer = setTimeout(() => {
+                        try { alert('You were logged out due to inactivity. Please log in again.'); } catch(e) {}
+                        logout();
+                    }, INACTIVITY_LIMIT);
+                }
+
+                function startInactivityTimer() {
+                    // start and attach listeners
+                    resetInactivityTimer();
+                    window.addEventListener('mousemove', _adminActivityListener, true);
+                    window.addEventListener('keydown', _adminActivityListener, true);
+                    window.addEventListener('click', _adminActivityListener, true);
+                    window.addEventListener('scroll', _adminActivityListener, true);
+                    document.addEventListener('visibilitychange', _visibilityListener, true);
+                }
+
+                function stopInactivityTimer() {
+                    if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
+                    window.removeEventListener('mousemove', _adminActivityListener, true);
+                    window.removeEventListener('keydown', _adminActivityListener, true);
+                    window.removeEventListener('click', _adminActivityListener, true);
+                    window.removeEventListener('scroll', _adminActivityListener, true);
+                    document.removeEventListener('visibilitychange', _visibilityListener, true);
+                }
+        
         async function login() {
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
@@ -317,6 +421,7 @@
                         sessionStorage.setItem('adminToken', data.token);
                     }
                     showDashboard();
+                    startInactivityTimer();
                     loadSummary();
                     loadAllOrders();
                     loadCustomers();
@@ -714,6 +819,14 @@
             loadAllOrders();
         }
 
+        function togglePasswordVisibility(inputId, toggleButton) {
+            const input = document.getElementById(inputId);
+            const isVisible = input.type === 'text';
+            input.type = isVisible ? 'password' : 'text';
+            toggleButton.setAttribute('aria-pressed', String(!isVisible));
+            toggleButton.setAttribute('aria-label', `${isVisible ? 'Show' : 'Hide'} ${input.placeholder.toLowerCase()}`);
+        }
+
         // Change password
         async function changePassword() {
             const cur = document.getElementById('currentPassword').value.trim();
@@ -755,6 +868,7 @@
         }
 
         async function logout() {
+            stopInactivityTimer();
             const token = sessionStorage.getItem('adminToken');
             if (token) {
                 try {
@@ -778,6 +892,7 @@
                 loadAllOrders();
                 loadCustomers();
                 loadInventory();
+                startInactivityTimer();
             } else {
                 showLoginForm();
             }
