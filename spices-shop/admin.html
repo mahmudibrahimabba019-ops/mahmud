@@ -362,16 +362,30 @@
         }
         
                 // Inactivity auto-logout
-                const INACTIVITY_LIMIT = 300000; // 5 minutes in ms
+                const INACTIVITY_LIMIT = 900000; // 15 minutes in ms
+                const TAB_AWAY_GRACE_PERIOD = 600000; // 10 minutes in ms
                 let inactivityTimer = null;
+                let visibilityGraceTimer = null;
                 const _adminActivityListener = () => resetInactivityTimer();
                 const _visibilityListener = () => {
-                    if (document.hidden) {
-                        const token = sessionStorage.getItem('adminToken');
-                        if (token) {
-                            try { alert('You were logged out because you left the admin tab. Please log in again.'); } catch(e) {}
-                            logout();
+                    const token = sessionStorage.getItem('adminToken');
+                    if (!token) {
+                        if (visibilityGraceTimer) {
+                            clearTimeout(visibilityGraceTimer);
+                            visibilityGraceTimer = null;
                         }
+                        return;
+                    }
+
+                    if (document.hidden) {
+                        if (visibilityGraceTimer) clearTimeout(visibilityGraceTimer);
+                        visibilityGraceTimer = setTimeout(() => {
+                            try { alert('You were logged out after being away from the admin tab for too long. Please log in again.'); } catch(e) {}
+                            logout();
+                        }, TAB_AWAY_GRACE_PERIOD);
+                    } else if (visibilityGraceTimer) {
+                        clearTimeout(visibilityGraceTimer);
+                        visibilityGraceTimer = null;
                     }
                 };
 
@@ -384,7 +398,10 @@
                 }
 
                 function startInactivityTimer() {
-                    // start and attach listeners
+                    if (visibilityGraceTimer) {
+                        clearTimeout(visibilityGraceTimer);
+                        visibilityGraceTimer = null;
+                    }
                     resetInactivityTimer();
                     window.addEventListener('mousemove', _adminActivityListener, true);
                     window.addEventListener('keydown', _adminActivityListener, true);
@@ -395,6 +412,7 @@
 
                 function stopInactivityTimer() {
                     if (inactivityTimer) { clearTimeout(inactivityTimer); inactivityTimer = null; }
+                    if (visibilityGraceTimer) { clearTimeout(visibilityGraceTimer); visibilityGraceTimer = null; }
                     window.removeEventListener('mousemove', _adminActivityListener, true);
                     window.removeEventListener('keydown', _adminActivityListener, true);
                     window.removeEventListener('click', _adminActivityListener, true);
@@ -577,7 +595,7 @@
 
         async function loadInventory() {
             try {
-                const resp = await fetch(`${API_URL}/products`);
+                const resp = await fetch(`${API_URL}/admin/products`, { headers: adminHeaders() });
                 const products = await resp.json();
 
                 // low stock alerts
@@ -592,17 +610,23 @@
                 }
 
                 // inventory table
-                let html = '<table><tr><th>Product</th><th>Stock</th><th>Controls</th></tr>';
+                let html = '<table><tr><th>Product</th><th>Stock</th><th>Status</th><th>Controls</th></tr>';
                 products.forEach(p => {
                     const q = Number(p.stock_quantity ?? 100);
                     let color = '#28a745';
                     if (q === 0) color = '#dc3545';
                     else if (q < 10) color = '#fd7e14';
 
+                    const isActive = p.is_active !== false;  // Default to active if undefined
+                    const statusBadge = isActive 
+                        ? '<span style="color:#28a745;font-weight:bold">✓ Active</span>'
+                        : '<span style="color:#dc3545;font-weight:bold">✗ Hidden</span>';
+
                     html += `
                         <tr>
                             <td>${p.name}</td>
                             <td><span style="color:${color};font-weight:bold">${q}</span></td>
+                            <td>${statusBadge}</td>
                             <td>
                                 <button onclick="adjustStock(${p.id}, 1)">+1</button>
                                 <button onclick="adjustStock(${p.id}, 10)">+10</button>
@@ -610,6 +634,9 @@
                                 <button onclick="adjustStock(${p.id}, -10)">-10</button>
                                 <input id="set-${p.id}" type="number" placeholder="Set" style="width:80px;margin-left:8px">
                                 <button onclick="setStock(${p.id})">Set</button>
+                                <button onclick="toggleProductActive(${p.id})" style="margin-left:12px;background-color:${isActive ? '#dc3545' : '#28a745'}">
+                                    ${isActive ? 'Hide from shop' : 'Show in shop'}
+                                </button>
                             </td>
                         </tr>
                     `;
@@ -644,6 +671,18 @@
                 if (!resp.ok) throw new Error('Failed');
                 await loadInventory();
             } catch (e) { alert('Could not set stock'); }
+        }
+
+        async function toggleProductActive(productId) {
+            try {
+                const resp = await fetch(`${API_URL}/admin/products/${productId}/toggle-active`, {
+                    method: 'PATCH', headers: adminHeaders()
+                });
+                if (!resp.ok) throw new Error('Failed');
+                const data = await resp.json();
+                alert(data.message);
+                await loadInventory();
+            } catch (e) { alert('Could not toggle product visibility'); }
         }
         
         async function viewOrderDetails(orderNumber) {

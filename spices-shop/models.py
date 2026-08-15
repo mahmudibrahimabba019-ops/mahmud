@@ -95,6 +95,7 @@ class Product(Base):
     image = Column(String, nullable=True)
     stock_quantity = Column(Integer, default=100)
     low_stock_threshold = Column(Integer, default=10)
+    is_active = Column(Boolean, default=True, nullable=False)
 
     def to_dict(self):
         return {
@@ -104,7 +105,8 @@ class Product(Base):
             'price': self.price,
             'image': self.image,
             'stock_quantity': self.stock_quantity,
-            'low_stock_threshold': self.low_stock_threshold
+            'low_stock_threshold': self.low_stock_threshold,
+            'is_active': self.is_active
         }
 
 

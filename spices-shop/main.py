@@ -35,6 +35,21 @@ admin_tokens = set()
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
+# SQLite compatibility check: ensure is_active column exists for existing products table
+try:
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        # Check if is_active column exists
+        result = conn.execute(text("PRAGMA table_info(products)")).fetchall()
+        column_names = [row[1] for row in result]  # Column name is at index 1
+        if 'is_active' not in column_names:
+            # Add the column with default value True for existing rows
+            conn.execute(text("ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+            conn.commit()
+            print("[STARTUP] Added is_active column to products table with default=True")
+except Exception as e:
+    print(f"[STARTUP] SQLite compatibility check error (non-critical): {e}")
+
 app = FastAPI(
     title="Halari House of Seasoning",
     description="Welcome to Halari House of Seasoning - Your premier destination for authentic Nigerian spices, herbs, and specialty yaji blends. Bringing flavor to your kitchen!"
@@ -223,13 +238,21 @@ def home():
 
 @app.get("/products")
 def get_products(db: Session = Depends(get_db)):
-    """Return products list augmented with stock info from the database when available."""
+    """Return active products list augmented with stock info from the database when available."""
     products_with_stock = []
     for p in PRODUCTS:
-        prod = dict(p)
+        # Check if product is active
         prod_db = db.query(models.Product).filter(models.Product.id == p.get('id')).first()
+        is_active = prod_db.is_active if prod_db else True  # Default to True for products not yet in DB
+        
+        # Skip inactive products for customers
+        if not is_active:
+            continue
+            
+        prod = dict(p)
         prod['stock_quantity'] = prod_db.stock_quantity if prod_db else 100
         prod['low_stock_threshold'] = prod_db.low_stock_threshold if prod_db else 10
+        prod['is_active'] = is_active
         products_with_stock.append(prod)
     return products_with_stock
 
@@ -237,16 +260,33 @@ def get_products(db: Session = Depends(get_db)):
 def get_product(product_id: int, db: Session = Depends(get_db)):
     for product in PRODUCTS:
         if product["id"] == product_id:
-            prod = dict(product)
             prod_db = db.query(models.Product).filter(models.Product.id == product_id).first()
+            is_active = prod_db.is_active if prod_db else True  # Default to True
+            
+            # Return 404 if product is inactive (hidden from customers)
+            if not is_active:
+                raise HTTPException(status_code=404, detail="Product not found")
+            
+            prod = dict(product)
             prod['stock_quantity'] = prod_db.stock_quantity if prod_db else 100
             prod['low_stock_threshold'] = prod_db.low_stock_threshold if prod_db else 10
+            prod['is_active'] = is_active
             return prod
-    return {"error": "Product not found"}
+    raise HTTPException(status_code=404, detail="Product not found")
 
 @app.get("/products/category/{category}")
-def get_products_by_category(category: str):
-    category_products = [p for p in PRODUCTS if p["category"] == category]
+def get_products_by_category(category: str, db: Session = Depends(get_db)):
+    category_products = []
+    for p in PRODUCTS:
+        if p["category"] == category:
+            prod_db = db.query(models.Product).filter(models.Product.id == p.get('id')).first()
+            is_active = prod_db.is_active if prod_db else True  # Default to True
+            
+            # Skip inactive products for customers
+            if not is_active:
+                continue
+            
+            category_products.append(p)
     return category_products
 
 
@@ -554,6 +594,22 @@ def verify_admin_token(request: Request):
     return token
 
 
+# ============ ADMIN PRODUCTS ENDPOINTS ============
+
+@app.get("/admin/products")
+def admin_get_all_products(db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
+    """Return ALL products (including inactive/hidden) with stock info. Admin only."""
+    products_with_stock = []
+    for p in PRODUCTS:
+        prod = dict(p)
+        prod_db = db.query(models.Product).filter(models.Product.id == p.get('id')).first()
+        prod['stock_quantity'] = prod_db.stock_quantity if prod_db else 100
+        prod['low_stock_threshold'] = prod_db.low_stock_threshold if prod_db else 10
+        prod['is_active'] = prod_db.is_active if prod_db else True
+        products_with_stock.append(prod)
+    return products_with_stock
+
+
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
@@ -730,6 +786,42 @@ def update_product_stock(product_id: int, payload: dict, db: Session = Depends(g
 
     db.commit()
     return { 'message': 'Stock updated', 'product_id': prod.id, 'stock_quantity': prod.stock_quantity }
+
+
+@app.patch("/admin/products/{product_id}/toggle-active")
+def toggle_product_active(product_id: int, db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
+    """Toggle a product's is_active status (hide/show from storefront). Admin only."""
+    prod = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not prod:
+        # Create product entry using PRODUCTS list if available
+        p = next((x for x in PRODUCTS if x.get('id') == product_id), None)
+        if p:
+            prod = models.Product(
+                id=p['id'],
+                name=p.get('name'),
+                category=p.get('category'),
+                price=p.get('price', 0),
+                image=p.get('image'),
+                is_active=True  # Default to active when first created
+            )
+            db.add(prod)
+            db.commit()
+            db.refresh(prod)
+        else:
+            raise HTTPException(status_code=404, detail='Product not found')
+
+    # Toggle the state
+    old_state = prod.is_active
+    prod.is_active = not prod.is_active
+    db.commit()
+
+    return {
+        'message': f"Product {'hidden' if not prod.is_active else 'shown'} successfully",
+        'product_id': prod.id,
+        'product_name': prod.name,
+        'is_active': prod.is_active,
+        'previous_state': old_state
+    }
 
 
 @app.get('/admin/low-stock')
