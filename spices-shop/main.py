@@ -36,19 +36,22 @@ admin_tokens = set()
 Base.metadata.create_all(bind=engine)
 
 # SQLite compatibility check: ensure is_active column exists for existing products table
-try:
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        # Check if is_active column exists
-        result = conn.execute(text("PRAGMA table_info(products)")).fetchall()
-        column_names = [row[1] for row in result]  # Column name is at index 1
-        if 'is_active' not in column_names:
-            # Add the column with default value True for existing rows
-            conn.execute(text("ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
-            conn.commit()
-            print("[STARTUP] Added is_active column to products table with default=True")
-except Exception as e:
-    print(f"[STARTUP] SQLite compatibility check error (non-critical): {e}")
+# PostgreSQL creates this column correctly via create_all() when the Product table is first created.
+database_url = os.getenv("DATABASE_URL", "sqlite:///./halari_spices.db")
+if database_url.startswith("sqlite"):
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            # Check if is_active column exists
+            result = conn.execute(text("PRAGMA table_info(products)")).fetchall()
+            column_names = [row[1] for row in result]  # Column name is at index 1
+            if 'is_active' not in column_names:
+                # Add the column with default value True for existing rows
+                conn.execute(text("ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
+                conn.commit()
+                print("[STARTUP] Added is_active column to products table with default=True")
+    except Exception as e:
+        print(f"[STARTUP] SQLite compatibility check error (non-critical): {e}")
 
 app = FastAPI(
     title="Halari House of Seasoning",
