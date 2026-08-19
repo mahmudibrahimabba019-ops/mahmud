@@ -66,6 +66,7 @@ allowed_origins = [
     "http://127.0.0.1:3000",      # local frontend dev server
     "http://localhost:3000",       # local alternative
     "http://127.0.0.1:8001",      # local direct access
+    "https://halari-frontend.onrender.com",
 ]
 
 # Read production domain from environment if set
