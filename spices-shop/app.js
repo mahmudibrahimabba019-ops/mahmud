@@ -121,7 +121,7 @@ class Cart {
 
 // Initialize cart
 const cart = new Cart();
-const API_BASE = 'http://127.0.0.1:8001';
+const API_BASE = 'https://halari-backend.onrender.com';
 
 function productImageUrl(filename){
     if(!filename) return (window.location.protocol === 'file:') ? './halari.jpg' : API_BASE + '/images/' + encodeURIComponent('halari.jpg');

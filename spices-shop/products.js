@@ -5,7 +5,7 @@ let ALL_PRODUCTS = [];
 // Fetch products from backend
 async function loadProducts() {
     try {
-        const response = await fetch('http://127.0.0.1:8001/products');
+        const response = await fetch('https://halari-backend.onrender.com/products');
         PRODUCTS = await response.json();
         ALL_PRODUCTS = PRODUCTS;
         console.log('Products loaded:', PRODUCTS);
