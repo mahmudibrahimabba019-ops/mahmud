@@ -237,6 +237,14 @@
         }
 
         @media (max-width: 768px) {
+            .table-scroll-wrapper {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                width: 100%;
+            }
+        }
+
+        @media (max-width: 768px) {
             #orderDetailsContent > div[style*="grid-template-columns"] {
                 grid-template-columns: 1fr !important;
                 width: 100%;
@@ -276,7 +284,7 @@
             </div>
             
             <h3>Recent Orders</h3>
-            <div id="recentOrdersTable"></div>
+            <div id="recentOrdersTable" class="table-scroll-wrapper"></div>
         </div>
 
         <!-- Orders Tab -->
@@ -291,20 +299,20 @@
                     <button class="nav-tab" onclick="clearDateFilters()">Clear</button>
                 </div>
             </div>
-            <div id="allOrdersTable"></div>
+            <div id="allOrdersTable" class="table-scroll-wrapper"></div>
         </div>
 
         <!-- Customers Tab -->
         <div id="customersTab" class="tab-content">
             <h3>All Customers</h3>
-            <div id="customersTable"></div>
+            <div id="customersTable" class="table-scroll-wrapper"></div>
         </div>
 
         <!-- Inventory Tab -->
         <div id="inventoryTab" class="tab-content">
             <h3>Inventory</h3>
             <div id="lowStockAlerts" style="margin-bottom:16px"></div>
-            <div id="inventoryTable"></div>
+            <div id="inventoryTable" class="table-scroll-wrapper"></div>
         </div>
 
         <!-- Settings Tab -->
