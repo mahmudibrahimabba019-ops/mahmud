@@ -228,22 +228,6 @@
             }
         });
         
-        // Test Paystack function
-        function testPaystack() {
-            if (typeof PaystackPop === 'undefined') {
-                alert('Paystack not loaded. Check CSP or internet.');
-                return;
-            }
-            var handler = PaystackPop.setup({
-                key: 'pk_test_abd78fdac041a5a82085a0aa0b504171b5a6f7d5',
-                email: 'test@example.com',
-                amount: 5000,
-                currency: 'NGN',
-                callback: function(r) { alert('Success!'); },
-                onClose: function() { alert('Closed'); }
-            });
-            handler.openIframe();
-        }
     </script>
 </head>
 <body>
@@ -553,7 +537,7 @@
             // Set up Paystack handler
             console.log('[pay] setting up Paystack handler...');
             const handler = PaystackPop.setup({
-                key: 'pk_test_abd78fdac041a5a82085a0aa0b504171b5a6f7d5',
+                key: 'pk_live_e0556a3e7a916b11e0c76e637b6dc6297c7a775f',
                 email: customerEmail,
                 amount: amountInKobo,
                 currency: 'NGN',
