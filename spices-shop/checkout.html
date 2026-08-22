@@ -184,6 +184,24 @@
             font-weight: bold;
             color: #4A2C1A;
         }
+
+        @media (max-width: 768px) {
+            .container {
+                width: 100%;
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .checkout-form,
+            .order-summary {
+                width: 100%;
+                padding: 20px;
+            }
+
+            .row {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
     <!-- Fix CSP to allow Paystack -->
     <meta http-equiv="Content-Security-Policy" content="default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; script-src * 'unsafe-inline' 'unsafe-eval' data: blob: https://js.paystack.co; style-src * 'unsafe-inline';">

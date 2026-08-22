@@ -235,6 +235,13 @@
             padding: 20px;
             color: #4A2C1A;
         }
+
+        @media (max-width: 768px) {
+            #orderDetailsContent > div[style*="grid-template-columns"] {
+                grid-template-columns: 1fr !important;
+                width: 100%;
+            }
+        }
     </style>
 </head>
 <body>
