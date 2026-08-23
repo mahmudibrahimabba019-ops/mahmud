@@ -727,7 +727,7 @@ def admin_summary(db: Session = Depends(get_db), token: str = Depends(verify_adm
         
         recent_orders_list.append({
             "order_number": order.order_number,
-            "created_at": str(order.created_at),
+            "created_at": order.created_at.isoformat() + "Z",
             "customer": customer_name,
             "total": order.total_amount,
             "status": order.status,
@@ -892,7 +892,7 @@ def admin_get_all_orders(
             "total_amount": order.total_amount,
             "status": order.status,
             "payment_status": order.payment_status,
-            "created_at": str(order.created_at),
+            "created_at": order.created_at.isoformat() + "Z",
             "item_count": len(order.items) if order.items else 0
         })
     
@@ -938,7 +938,7 @@ def admin_get_order_details(order_id: int, db: Session = Depends(get_db), token:
 
     return {
         "order_number": order.order_number,
-        "created_at": str(order.created_at),
+        "created_at": order.created_at.isoformat() + "Z",
         "customer": {
             "first_name": order.delivery_first_name or "",
             "last_name": order.delivery_last_name or "",
