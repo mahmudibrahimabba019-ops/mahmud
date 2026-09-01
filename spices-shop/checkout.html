@@ -713,8 +713,120 @@
         }
     }
     
+    // Refresh cart prices from live API before displaying checkout
+    async function refreshCartPrices() {
+        try {
+            console.log('[refreshCartPrices] fetching current products from API...');
+            
+            // Fetch current product list from API
+            const response = await fetch(`${API_URL}/products`);
+            if (!response.ok) {
+                console.warn('[refreshCartPrices] failed to fetch products, using cached cart');
+                return; // Continue with cached prices if API fails
+            }
+            
+            const productsData = await response.json();
+            console.log('[refreshCartPrices] fetched products:', productsData);
+            
+            // Create a map of current products by ID for quick lookup
+            const currentProducts = {};
+            if (Array.isArray(productsData)) {
+                productsData.forEach(product => {
+                    currentProducts[product.id] = product;
+                });
+            } else if (productsData.products && Array.isArray(productsData.products)) {
+                productsData.products.forEach(product => {
+                    currentProducts[product.id] = product;
+                });
+            }
+            
+            console.log('[refreshCartPrices] current products map:', currentProducts);
+            
+            // Get cart from localStorage
+            const cart = getCartFromLocalStorage();
+            if (!cart.items || cart.items.length === 0) {
+                console.log('[refreshCartPrices] cart is empty, nothing to refresh');
+                return;
+            }
+            
+            // Track removed items and price changes
+            const removedItems = [];
+            const priceUpdates = [];
+            let updatedItems = [];
+            
+            // Process each cart item
+            cart.items.forEach((item, index) => {
+                const productId = item.product_id || item.id;
+                const currentProduct = currentProducts[productId];
+                
+                if (!currentProduct) {
+                    // Product no longer exists
+                    console.log(`[refreshCartPrices] product ${productId} no longer available`);
+                    removedItems.push(item.product_name || item.name || `Product ${productId}`);
+                } else {
+                    // Product exists - check if price changed
+                    const oldPrice = item.price;
+                    const newPrice = currentProduct.price;
+                    
+                    if (oldPrice !== newPrice) {
+                        console.log(`[refreshCartPrices] price updated for ${item.product_name || item.name}: ₦${oldPrice} → ₦${newPrice}`);
+                        priceUpdates.push({
+                            name: item.product_name || item.name,
+                            oldPrice: oldPrice,
+                            newPrice: newPrice
+                        });
+                    }
+                    
+                    // Update item with current price
+                    item.price = newPrice;
+                    item.subtotal = newPrice * (item.quantity || 1);
+                    updatedItems.push(item);
+                }
+            });
+            
+            // Update cart with refreshed prices
+            cart.items = updatedItems;
+            cart.subtotal = cart.items.reduce((sum, item) => sum + (item.subtotal || 0), 0);
+            cart.total = cart.subtotal + (cart.delivery_fee || 3000);
+            
+            // Save updated cart back to localStorage
+            const cartKeys = ['cart', 'halari_cart', 'spices_cart'];
+            cartKeys.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.setItem(key, JSON.stringify(cart));
+                }
+            });
+            
+            console.log('[refreshCartPrices] cart updated:', cart);
+            
+            // Show notifications if there were removals or updates
+            if (removedItems.length > 0) {
+                const msgEl = document.getElementById('message');
+                if (msgEl) {
+                    msgEl.className = 'message error';
+                    msgEl.innerHTML = `<strong>⚠️ Items no longer available:</strong><br/>The following item(s) have been removed from your cart because they're no longer in stock: <br/>• ${removedItems.join('<br/>• ')}`;
+                    msgEl.style.display = 'block';
+                }
+            }
+            
+            if (priceUpdates.length > 0 && removedItems.length === 0) {
+                console.log('[refreshCartPrices] some prices were updated, but all items remain');
+            }
+            
+            return { removedItems, priceUpdates };
+            
+        } catch (error) {
+            console.error('[refreshCartPrices] error:', error);
+            // Silently continue with cached prices if refresh fails
+        }
+    }
+    
     // Load order summary when page loads
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', async function() {
+        // Refresh prices from live API BEFORE displaying cart to customer
+        await refreshCartPrices();
+        
+        // Now display the updated cart summary
         displayOrderSummary();
         
         // Check if cart is empty
