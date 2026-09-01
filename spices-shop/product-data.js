@@ -1,54 +1,30 @@
 const PRODUCT_DETAILS = {
   37: {
     description: "Bold, smoky, and perfectly spiced. A classic yaji blend made for grilled meats, chicken, and bold flavors.",
-    howToUse: "Sprinkle or rub onto meats before or after grilling. Perfect for suya, kebabs, fries, and bold everyday meals.",
-    sizes: [
-      { weight: "150g", price: 2500, variantId: 37 },
-      { weight: "400g", price: 6500, variantId: 40 }
-    ]
+    howToUse: "Sprinkle or rub onto meats before or after grilling. Perfect for suya, kebabs, fries, and bold everyday meals."
   },
   38: {
     description: "Bold, smoky yaji with rich daddawa depth. Made for suya and lovers of deep, savory flavor.",
-    howToUse: "Sprinkle or rub onto grilled meats and suya. Use sparingly as a finishing spice for bold dishes.",
-    sizes: [
-      { weight: "150g", price: 2500, variantId: 38 },
-      { weight: "400g", price: 7000, variantId: 41 }
-    ]
+    howToUse: "Sprinkle or rub onto grilled meats and suya. Use sparingly as a finishing spice for bold dishes."
   },
   39: {
     description: "Smoky yaji infused with rich garlic flavor. Bold, aromatic, and perfect for everyday grilling.",
-    howToUse: "Sprinkle or rub onto meats before or after grilling. Great for suya, chicken, fish, and roasted vegetables.",
-    sizes: [
-      { weight: "150g", price: 3000, variantId: 39 },
-      { weight: "400g", price: 7000, variantId: 42 }
-    ]
+    howToUse: "Sprinkle or rub onto meats before or after grilling. Great for suya, chicken, fish, and roasted vegetables."
   },
   40: {
-    // 400g All spice Yaji - same as 37
+    // 400g All spice Yaji
     description: "Bold, smoky, and perfectly spiced. A classic yaji blend made for grilled meats, chicken, and bold flavors.",
-    howToUse: "Sprinkle or rub onto meats before or after grilling. Perfect for suya, kebabs, fries, and bold everyday meals.",
-    sizes: [
-      { weight: "150g", price: 2500, variantId: 37 },
-      { weight: "400g", price: 6500, variantId: 40 }
-    ]
+    howToUse: "Sprinkle or rub onto meats before or after grilling. Perfect for suya, kebabs, fries, and bold everyday meals."
   },
   41: {
-    // 400g Daddawa Yaji - same as 38
+    // 400g Daddawa Yaji
     description: "Bold, smoky yaji with rich daddawa depth. Made for suya and lovers of deep, savory flavor.",
-    howToUse: "Sprinkle or rub onto grilled meats and suya. Use sparingly as a finishing spice for bold dishes.",
-    sizes: [
-      { weight: "150g", price: 2500, variantId: 38 },
-      { weight: "400g", price: 7000, variantId: 41 }
-    ]
+    howToUse: "Sprinkle or rub onto grilled meats and suya. Use sparingly as a finishing spice for bold dishes."
   },
   42: {
-    // 400g Garlic Yaji - same as 39
+    // 400g Garlic Yaji
     description: "Smoky yaji infused with rich garlic flavor. Bold, aromatic, and perfect for everyday grilling.",
-    howToUse: "Sprinkle or rub onto meats before or after grilling. Great for suya, chicken, fish, and roasted vegetables.",
-    sizes: [
-      { weight: "150g", price: 3000, variantId: 39 },
-      { weight: "400g", price: 7000, variantId: 42 }
-    ]
+    howToUse: "Sprinkle or rub onto meats before or after grilling. Great for suya, chicken, fish, and roasted vegetables."
   },
   // Single-size products
   1: { description: "Warm, aromatic spice with notes of clove, cinnamon, and nutmeg. Adds depth and richness to both savory and sweet dishes.", howToUse: "Use in stews, marinades, rice dishes, and baked goods. A little goes a long way.", sizes: [{ weight: "100g", price: 8000, variantId: 1 }] },

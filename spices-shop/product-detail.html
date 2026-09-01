@@ -167,23 +167,37 @@
       sc.innerHTML = '';
 
       const sizes = Array.isArray(details.sizes) && details.sizes.length ? details.sizes : [{ weight: '100g', price: apiProduct.price || 0, variantId: productId }];
+      const singleSizeOnly = sizes.length === 1;
 
-      sizes.forEach((s, idx)=>{
-        const id = `size-${idx}`;
-        const row = document.createElement('div'); row.className = 'size-option';
+      if (singleSizeOnly) {
+        sc.style.display = 'none';
+        document.getElementById('product-price').textContent = formatPrice(sizes[0].price ?? apiProduct.price ?? 0);
+      } else {
+        sc.style.display = 'block';
+        sizes.forEach((s, idx)=>{
+          const id = `size-${idx}`;
+          const row = document.createElement('div'); row.className = 'size-option';
 
-        const radio = document.createElement('input');
-        radio.type = 'radio'; radio.name = 'size'; radio.id = id; radio.value = s.price; radio.dataset.weight = s.weight; radio.dataset.variant = s.variantId || productId;
-        if(idx===0) radio.checked = true;
+          const radio = document.createElement('input');
+          radio.type = 'radio'; radio.name = 'size'; radio.id = id; radio.value = s.price; radio.dataset.weight = s.weight; radio.dataset.variant = s.variantId || productId;
+          if(idx===0) radio.checked = true;
 
-        const label = document.createElement('label'); label.htmlFor = id; label.textContent = `${s.weight} — ${formatPrice(s.price)}`;
+          const label = document.createElement('label'); label.htmlFor = id; label.textContent = `${s.weight} — ${formatPrice(s.price)}`;
 
-        row.appendChild(radio); row.appendChild(label);
-        sc.appendChild(row);
-      });
+          row.appendChild(radio); row.appendChild(label);
+          sc.appendChild(row);
+        });
+      }
 
       // show base price of selected
-      function updateDisplayedPrice(){ const sel = document.querySelector('input[name="size"]:checked'); if(sel) document.getElementById('product-price').textContent = formatPrice(sel.value); }
+      function updateDisplayedPrice(){
+        if (singleSizeOnly) {
+          document.getElementById('product-price').textContent = formatPrice(sizes[0].price ?? apiProduct.price ?? 0);
+          return;
+        }
+        const sel = document.querySelector('input[name="size"]:checked');
+        if(sel) document.getElementById('product-price').textContent = formatPrice(sel.value);
+      }
       updateDisplayedPrice();
       document.getElementById('sizes-container').addEventListener('change', updateDisplayedPrice);
 
@@ -195,10 +209,9 @@
         if (qty > stockQty) { alert(`Only ${stockQty} units available`); return; }
         const sel = document.querySelector('input[name="size"]:checked');
         const sel2 = document.querySelector('input[name="size"]:checked');
-        if(!sel2) return;
-        const weight = sel2.dataset.weight || '';
-        const variantId = Number(sel2.dataset.variant || productId);
-        const price = Number(sel2.value) || 0;
+        const weight = sel2 ? (sel2.dataset.weight || '') : '';
+        const variantId = Number(sel2 ? (sel2.dataset.variant || productId) : productId);
+        const price = Number(sel2 ? (sel2.value) : (sizes[0].price ?? apiProduct.price ?? 0)) || 0;
 
         const item = {
           id: variantId,
