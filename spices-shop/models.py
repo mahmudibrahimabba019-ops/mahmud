@@ -33,6 +33,7 @@ class Order(Base):
     # Order details
     subtotal = Column(Float)
     delivery_fee = Column(Float, default=3000)  # Default delivery fee
+    delivery_method = Column(String, default="delivery", nullable=False)
     total_amount = Column(Float)
     
     # Status

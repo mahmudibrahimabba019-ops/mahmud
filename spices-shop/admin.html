@@ -561,7 +561,7 @@
                 const response = await fetch(url, { headers: adminHeaders() });
                 const data = await response.json();
 
-                let html = '<table><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Phone</th><th>Total</th><th>Status</th><th>Payment</th></tr>';
+                let html = '<table><tr><th>Order #</th><th>Date</th><th>Customer</th><th>Phone</th><th>Method</th><th>Total</th><th>Status</th><th>Payment</th></tr>';
                 data.orders.forEach(order => {
                     html += `
                         <tr onclick="viewOrderDetails('${order.order_number}')" style="cursor: pointer;">
@@ -569,6 +569,7 @@
                             <td class="date-cell"><span class="cal-icon">📅</span>${formatDate(new Date(order.created_at))}</td>
                             <td>${order.customer_name}</td>
                             <td>${order.customer_phone}</td>
+                            <td>${order.delivery_method === 'pickup' ? 'Pickup' : 'Delivery'}</td>
                             <td>₦${order.total_amount.toLocaleString()}</td>
                             <td><span class="status-badge status-${order.status}">${order.status}</span></td>
                             <td><span class="status-badge status-${order.payment_status}">${order.payment_status}</span></td>
@@ -730,6 +731,7 @@
                             <p><strong>Phone:</strong> ${details.customer.phone}</p>
                         </div>
                         <div>
+                            <h4>Delivery Method: ${details.delivery_method === 'pickup' ? 'Pickup' : 'Delivery'}</h4>
                             <h4>Delivery Address</h4>
                             <p>${details.delivery.address}</p>
                             <p>${details.delivery.city}, ${details.delivery.state}</p>

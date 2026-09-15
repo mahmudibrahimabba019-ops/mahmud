@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -50,8 +50,30 @@ if database_url.startswith("sqlite"):
                 conn.execute(text("ALTER TABLE products ADD COLUMN is_active BOOLEAN DEFAULT 1 NOT NULL"))
                 conn.commit()
                 print("[STARTUP] Added is_active column to products table with default=True")
+            order_columns = [row[1] for row in conn.execute(text("PRAGMA table_info(orders)")).fetchall()]
+            if 'delivery_method' not in order_columns:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_method VARCHAR DEFAULT 'delivery' NOT NULL"))
+                conn.commit()
+                print("[STARTUP] Added delivery_method column to orders table with default='delivery'")
     except Exception as e:
         print(f"[STARTUP] SQLite compatibility check error (non-critical): {e}")
+else:
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            column_exists = conn.execute(text("""
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'orders'
+                  AND column_name = 'delivery_method'
+            """)).scalar()
+            if not column_exists:
+                conn.execute(text("ALTER TABLE orders ADD COLUMN delivery_method VARCHAR DEFAULT 'delivery' NOT NULL"))
+                conn.commit()
+                print("[STARTUP] Added delivery_method column to orders table with default='delivery'")
+    except Exception as e:
+        print(f"[STARTUP] PostgreSQL delivery_method migration error (non-critical): {e}")
 
 app = FastAPI(
     title="Halari House of Seasoning",
@@ -130,6 +152,7 @@ class OrderCreate(BaseModel):
     items: List[OrderItemCreate]
     subtotal: float
     delivery_fee: float = 3000
+    delivery_method: Optional[Any] = None
     total_amount: float
     delivery_address: str
     delivery_phone: str
@@ -147,6 +170,7 @@ class OrderResponse(BaseModel):
     customer_id: int
     subtotal: float
     delivery_fee: float
+    delivery_method: str
     total_amount: float
     status: str
     payment_status: str
@@ -422,7 +446,8 @@ def create_order(request: Request, order: OrderCreate, db: Session = Depends(get
             "subtotal": real_subtotal
         })
 
-    delivery_fee = 3000.0
+    delivery_method = order.delivery_method if order.delivery_method in ("delivery", "pickup") else "delivery"
+    delivery_fee = 3000.0 if delivery_method == "delivery" else 0.0
     calculated_total = calculated_subtotal + delivery_fee
 
     if abs(calculated_total - order.total_amount) > 1.0:
@@ -438,6 +463,7 @@ def create_order(request: Request, order: OrderCreate, db: Session = Depends(get
         customer_id=order.customer_id,
         subtotal=calculated_subtotal,
         delivery_fee=delivery_fee,
+        delivery_method=delivery_method,
         total_amount=calculated_total,
         status="pending",
         payment_status="unpaid",
@@ -510,6 +536,7 @@ def get_order(order_id: int, db: Session = Depends(get_db)):
         "customer_id": order.customer_id,
         "subtotal": order.subtotal,
         "delivery_fee": order.delivery_fee,
+                "delivery_method": order.delivery_method if order.delivery_method else 'delivery',
         "total_amount": order.total_amount,
         "status": order.status,
         "payment_status": order.payment_status,
@@ -889,6 +916,7 @@ def admin_get_all_orders(
             "order_number": order.order_number,
             "customer_name": customer_name,
             "customer_phone": customer_phone,
+            "delivery_method": order.delivery_method,
             "total_amount": order.total_amount,
             "status": order.status,
             "payment_status": order.payment_status,
@@ -956,6 +984,7 @@ def admin_get_order_details(order_id: int, db: Session = Depends(get_db), token:
         "items": items_list,
         "subtotal": order.subtotal,
         "delivery_fee": order.delivery_fee,
+        "delivery_method": order.delivery_method,
         "total_amount": order.total_amount,
         "status": order.status,
         "payment_status": order.payment_status
@@ -1182,15 +1211,18 @@ ORDER SUMMARY:
         delivery_address = order_data.get('delivery_address', '')
         delivery_city = order_data.get('delivery_city', '')
         delivery_state = order_data.get('delivery_state', '')
+        is_pickup = order_data.get('delivery_method') == 'pickup'
+        pickup_address = 'Suit 2 Cherryhill Plaza, Utako, Abuja'
+        address_label = 'PICKUP ADDRESS' if is_pickup else 'DELIVERY ADDRESS'
+        address_text = pickup_address if is_pickup else f'{delivery_address}\n{delivery_city}, {delivery_state}'
 
         plain_text += f"""
 Subtotal: {subtotal_str}
 Delivery Fee: {delivery_str}
 TOTAL PAID: {total_str}
 
-DELIVERY ADDRESS:
-{delivery_address}
-{delivery_city}, {delivery_state}
+{address_label}:
+{address_text}
 
 We will begin processing your order shortly.
 Thank you for shopping with Halari House of Seasoning!
@@ -1334,12 +1366,11 @@ Thank you for shopping with Halari House of Seasoning!
                           border: 1px solid #4A2C1A;">
                 <p style="margin:0 0 8px 0; color:#4A2C1A; font-size:13px;
                           font-weight:bold; letter-spacing:1px;">
-                  📦 DELIVERY ADDRESS
+                  📦 {address_label}
                 </p>
                 <p style="margin:0; color:#4A2C1A; font-size:14px;
                           line-height:1.6;">
-                  {delivery_address}<br>
-                  {delivery_city}, {delivery_state}
+                  {address_text.replace(chr(10), '<br>')}
                 </p>
               </div>
 
@@ -1443,6 +1474,7 @@ def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_respon
                 "items": items_list,
                 "subtotal": order.subtotal,
                 "delivery_fee": order.delivery_fee,
+                "delivery_method": order.delivery_method,
                 "total_amount": order.total_amount,
                 "delivery_address": order.delivery_address,
                 "delivery_city": order.delivery_city,
@@ -1623,6 +1655,7 @@ def test_send_email(order_id: int, db: Session = Depends(get_db)):
         'items': items_list,
         'subtotal': order.subtotal,
         'delivery_fee': order.delivery_fee,
+        'delivery_method': order.delivery_method,
         'total_amount': order.total_amount,
         'delivery_address': order.delivery_address
     }
