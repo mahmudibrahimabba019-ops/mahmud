@@ -287,6 +287,10 @@
                     <textarea id="note" autocomplete="off" rows="2" placeholder="Call before delivery, leave with neighbor, etc."></textarea>
                 </div>
                 </div>
+
+                <div id="pickupAddress" style="display:none;background:#F5E6D3;border:1px solid #4A2C1A;color:#4A2C1A;padding:12px;border-radius:5px;margin-bottom:15px;">
+                    <strong>Pickup Address:</strong> Suit 2 Cherryhill Plaza, Utako, Abuja
+                </div>
                 
                 <button type="button" id="submitBtn" onclick="payWithPaystack()">Pay Now</button>
             </form>
@@ -419,7 +423,9 @@
     function updateDeliveryFields() {
         const isDelivery = getSelectedDeliveryMethod() === 'delivery';
         const deliveryFields = document.getElementById('deliveryFields');
+        const pickupAddress = document.getElementById('pickupAddress');
         if (deliveryFields) deliveryFields.style.display = isDelivery ? '' : 'none';
+        if (pickupAddress) pickupAddress.style.display = isDelivery ? 'none' : '';
         ['address', 'city', 'state'].forEach(id => {
             const field = document.getElementById(id);
             if (field) field.required = isDelivery;
