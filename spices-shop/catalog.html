@@ -16,10 +16,31 @@
         .product-image { width:100%; background:#fff; display:flex; align-items:center; justify-content:center; }
         .product-image img{ width:100%; height:180px; object-fit:cover; display:block; }
         .product-info{ padding:12px 14px; text-align:center; }
-        .product-name{ font-size:16px; margin:8px 0 14px 0; color:var(--accent); text-decoration:none; }
+        .product-name{ font-size:16px; margin:2px 0 4px 0; color:var(--accent); text-decoration:none; }
+        #products-grid .product-info{ justify-content:flex-start; gap:0; }
+        #products-grid .product-name{ min-height:0; line-height:1.2; }
+        .product-price{ margin:0 0 8px; color:var(--accent); font-size:18px; font-weight:700; text-decoration:none; }
+        .catalog-cart-controls{ display:flex; align-items:center; justify-content:center; gap:8px; margin:0 0 10px; }
+        .catalog-quantity{ width:52px; height:38px; box-sizing:border-box; padding:6px; border:1px solid #c8b4a4; border-radius:6px; background:#fff; color:var(--accent); text-align:center; font:600 14px Inter, sans-serif; }
+        .catalog-add-to-cart{ min-height:38px; padding:8px 12px; border:1px solid var(--accent); border-radius:6px; background:var(--accent); color:#fff !important; cursor:pointer; font:700 13px Inter, sans-serif; white-space:nowrap; }
+        .catalog-add-to-cart:hover{ background:#6b482f; border-color:#6b482f; }
+        .catalog-quantity:disabled,
+        .catalog-add-to-cart:disabled{ opacity:.55; cursor:not-allowed; }
+        .catalog-add-to-cart:disabled{ background:#9b9b9b; border-color:#9b9b9b; }
         .view-details-btn{ display:inline-block; margin:0 auto 12px auto; background:var(--accent); color:#fff; text-decoration:none; padding:10px 20px; border-radius:8px; transition: background .15s ease; }
         .view-details-btn:hover{ background:#6b482f; }
         .no-results{ padding:28px; text-align:center; color:#333; }
+        @media (max-width: 480px){
+            .products-grid{ gap:12px; }
+            #products-grid .product-image{ height:150px; flex-basis:150px; }
+            #products-grid .product-info{ padding:9px 8px; }
+            .product-name{ font-size:14px; margin:1px 0 3px; }
+            .product-price{ margin-bottom:6px; font-size:16px; }
+            .catalog-cart-controls{ gap:5px; margin-bottom:7px; }
+            .catalog-quantity{ width:44px; height:34px; }
+            .catalog-add-to-cart{ min-height:34px; padding:7px 8px; font-size:12px; }
+            .view-details-btn{ margin-bottom:3px; padding:8px 12px; font-size:12px; }
+        }
     </style>
 </head>
 <body>
