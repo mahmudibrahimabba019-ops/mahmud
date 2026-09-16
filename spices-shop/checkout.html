@@ -265,6 +265,7 @@
                     <label><input type="radio" name="delivery_method" value="pickup" onchange="displayOrderSummary()"> Pickup from our shop — Free</label>
                 </div>
 
+                <div id="deliveryFields">
                 <div class="form-group">
                     <label>Delivery Address *</label>
                     <textarea id="address" autocomplete="off" rows="2" required placeholder="No 15, Ahmadu Bello Way"></textarea>
@@ -280,6 +281,7 @@
                         <label>State *</label>
                         <input type="text" id="state" autocomplete="off" required placeholder="Kaduna">
                     </div>
+                </div>
                 </div>
                 
                 <div class="form-group">
@@ -361,6 +363,7 @@
     function displayOrderSummary() {
         const cart = getCartFromLocalStorage();
         const deliverySummary = updateDeliverySummary();
+        updateDeliveryFields();
         cart.delivery_fee = deliverySummary.deliveryFee;
         cart.total = deliverySummary.total;
         
@@ -414,11 +417,23 @@
         return document.querySelector('input[name="delivery_method"]:checked')?.value || 'delivery';
     }
 
+    function updateDeliveryFields() {
+        const isDelivery = getSelectedDeliveryMethod() === 'delivery';
+        const deliveryFields = document.getElementById('deliveryFields');
+        if (deliveryFields) deliveryFields.style.display = isDelivery ? '' : 'none';
+        ['address', 'city', 'state'].forEach(id => {
+            const field = document.getElementById(id);
+            if (field) field.required = isDelivery;
+        });
+    }
+
     function updateDeliverySummary() {
         const cart = getCartFromLocalStorage();
-        const deliveryFee = getSelectedDeliveryMethod() === 'pickup' ? 0 : 3000;
+        const deliveryMethod = getSelectedDeliveryMethod();
+        const deliveryFee = deliveryMethod === 'pickup' ? 0 : 3000;
         const subtotal = cart.subtotal || 0;
         const total = subtotal + deliveryFee;
+        localStorage.setItem('delivery_method', deliveryMethod);
         const deliveryFeeEl = document.getElementById('deliveryFee');
         const subtotalEl = document.getElementById('subtotal');
         const totalEl = document.getElementById('total');
@@ -432,7 +447,10 @@
     
     // Validate form
     function validateCheckoutForm() {
-        const required = ['email', 'phone', 'firstName', 'lastName', 'address', 'city', 'state'];
+        const required = ['email', 'phone', 'firstName', 'lastName'];
+        if (getSelectedDeliveryMethod() === 'delivery') {
+            required.push('address', 'city', 'state');
+        }
         for (const id of required) {
             const el = document.getElementById(id);
             if (!el || !el.value.trim()) {
@@ -536,10 +554,10 @@
                 first_name: document.getElementById('firstName').value.trim(),
                 last_name: document.getElementById('lastName').value.trim(),
                 email: document.getElementById('email').value.trim(),
-                delivery_address: document.getElementById('address').value.trim(),
+                delivery_address: deliveryMethod === 'pickup' ? '' : document.getElementById('address').value.trim(),
                 delivery_phone: document.getElementById('phone').value.trim(),
-                delivery_city: document.getElementById('city').value.trim(),
-                delivery_state: document.getElementById('state').value.trim(),
+                delivery_city: deliveryMethod === 'pickup' ? '' : document.getElementById('city').value.trim(),
+                delivery_state: deliveryMethod === 'pickup' ? '' : document.getElementById('state').value.trim(),
                 delivery_note: document.getElementById('note')?.value.trim() || ""
             };
             
@@ -859,6 +877,10 @@
     
     // Load order summary when page loads
     document.addEventListener('DOMContentLoaded', async function() {
+        const savedDeliveryMethod = localStorage.getItem('delivery_method') === 'pickup' ? 'pickup' : 'delivery';
+        const savedRadio = document.querySelector(`input[name="delivery_method"][value="${savedDeliveryMethod}"]`);
+        if (savedRadio) savedRadio.checked = true;
+        updateDeliveryFields();
         // Refresh prices from live API BEFORE displaying cart to customer
         await refreshCartPrices();
         

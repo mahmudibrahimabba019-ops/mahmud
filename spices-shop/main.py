@@ -154,10 +154,10 @@ class OrderCreate(BaseModel):
     delivery_fee: float = 3000
     delivery_method: Optional[Any] = None
     total_amount: float
-    delivery_address: str
+    delivery_address: Optional[str] = None
     delivery_phone: str
-    delivery_city: str
-    delivery_state: str
+    delivery_city: Optional[str] = None
+    delivery_state: Optional[str] = None
     delivery_note: str = None
     payment_reference: Optional[str] = None
     first_name: Optional[str] = None
@@ -447,6 +447,16 @@ def create_order(request: Request, order: OrderCreate, db: Session = Depends(get
         })
 
     delivery_method = order.delivery_method if order.delivery_method in ("delivery", "pickup") else "delivery"
+
+    if delivery_method == "delivery" and any(
+        not value or not value.strip()
+        for value in (order.delivery_address, order.delivery_city, order.delivery_state)
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Delivery address, city, and state are required for delivery orders."
+        )
+
     delivery_fee = 3000.0 if delivery_method == "delivery" else 0.0
     calculated_total = calculated_subtotal + delivery_fee
 
