@@ -23,14 +23,9 @@ class Cart {
 
     saveCart() {
         // Save in unified cart object format
-        const deliveryMethod = localStorage.getItem('delivery_method') === 'pickup' ? 'pickup' : 'delivery';
-        const deliveryFee = deliveryMethod === 'pickup' ? 0 : 3000;
         const cartObj = {
             items: this.items,
-            subtotal: this.getTotal(),
-            delivery_method: deliveryMethod,
-            delivery_fee: deliveryFee,
-            total: this.getTotal() + deliveryFee
+            subtotal: this.getTotal()
         };
         localStorage.setItem('cart', JSON.stringify(cartObj));
         // also keep legacy keys in sync for compatibility
@@ -284,15 +279,9 @@ function removeFromCart(productId) {
 
 function updateCartSummary() {
     const subtotal = cart.getTotal();
-    const delivery = localStorage.getItem('delivery_method') === 'pickup' ? 0 : 3000;
-    const total = subtotal + delivery;
 
     const subtotalEl = document.getElementById('subtotal');
-    const totalEl = document.getElementById('total');
-    const deliveryEl = document.getElementById('deliveryFee');
     if (subtotalEl) subtotalEl.textContent = subtotal.toLocaleString();
-    if (deliveryEl) deliveryEl.textContent = `₦${delivery.toLocaleString()}`;
-    if (totalEl) totalEl.textContent = total.toLocaleString();
 }
 
 

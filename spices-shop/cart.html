@@ -48,24 +48,8 @@
                             <span>Subtotal:</span>
                             <span>₦<span id="subtotal">0</span></span>
                         </div>
-                        <div class="delivery-method-choice">
-                            <label>Order Method *</label>
-                            <label><input type="radio" name="delivery_method" value="delivery" checked onchange="setCartDeliveryMethod(this.value)"> Delivery — ₦3,000</label>
-                            <label><input type="radio" name="delivery_method" value="pickup" onchange="setCartDeliveryMethod(this.value)"> Pickup from our shop — Free</label>
-                        </div>
-                        <div class="summary-row">
-                            <span>Delivery Fee:</span>
-                            <span>₦<span id="deliveryFee">3,000</span></span>
-                        </div>
-                        <div class="summary-row total">
-                            <span>Total:</span>
-                            <span>₦<span id="total">0</span></span>
-                        </div>
 
                         <div class="checkout-section">
-                            <h3>Finalize Your Order</h3>
-                            <p class="checkout-info">Proceed to checkout to complete your order online.</p>
-                            <button class="btn btn-secondary btn-full" onclick="clearCart()">Clear Cart</button>
                         </div>
                     </div>
                 </div>
@@ -96,14 +80,6 @@
                 try{ const parsed = JSON.parse(raw); if(Array.isArray(parsed)) return parsed.length>0; if(parsed && parsed.items) return parsed.items.length>0; }catch(e){return false}
                 return false;
             }
-            function getCartDeliveryMethod(){
-                return localStorage.getItem('delivery_method') === 'pickup' ? 'pickup' : 'delivery';
-            }
-            function setCartDeliveryMethod(method){
-                const selectedMethod = method === 'pickup' ? 'pickup' : 'delivery';
-                localStorage.setItem('delivery_method', selectedMethod);
-                if (typeof updateCartSummary === 'function') updateCartSummary();
-            }
             function ensureHalariCart(){ const keys=['spices_cart','halari_cart','cart']; for(const k of keys){ const v=localStorage.getItem(k); if(v){ localStorage.setItem('halari_cart', v); return true; } } return false; }
             function createProceedButton(){
                 const btn = document.createElement('button'); btn.className='btn btn-primary btn-full'; btn.id='proceed-to-checkout'; btn.textContent='Proceed to Checkout'; btn.style.margin='10px 0'; btn.disabled = !hasCartItems();
@@ -112,9 +88,7 @@
                 return btn;
             }
             document.addEventListener('DOMContentLoaded', ()=>{
-                const selectedMethod = getCartDeliveryMethod();
-                const selectedRadio = document.querySelector(`input[name="delivery_method"][value="${selectedMethod}"]`);
-                if (selectedRadio) selectedRadio.checked = true;
+                localStorage.removeItem('delivery_method');
                 if (typeof updateCartSummary === 'function') updateCartSummary();
                 const section = document.querySelector('.checkout-section') || document.querySelector('.cart-summary') || document.querySelector('.container');
                 if(!section) return; const proceed = createProceedButton(); const firstChild = section.firstElementChild; if(firstChild) section.insertBefore(proceed, firstChild); else section.appendChild(proceed);
