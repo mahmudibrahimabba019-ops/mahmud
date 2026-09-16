@@ -78,6 +78,7 @@
     <!-- Products fetch + category filter (no search) -->
     <script>
         const API_URL = 'https://halari-backend.onrender.com/products';
+        window.catalogOwnsRendering = true;
         let ALL_PRODUCTS = [];
         let currentCategory = 'spices';
 
@@ -111,7 +112,7 @@
                     viewHref = 'javascript:void(0)';
                     viewClass = 'view-details-btn disabled';
                 } else if (stock > 0 && stock < 10) {
-                    stockHtml = `<div style="color:#fd7e14;font-weight:600;margin-bottom:8px">⚠️ Only ${stock} left in stock</div>`;
+                    stockHtml = `<div style="color:#fd7e14;font-weight:600;margin-bottom:8px">⚠️ Few stocks remaining</div>`;
                 }
 
                 return `
@@ -123,13 +124,37 @@
                         </div>
                         <div class="product-info">
                             <h3 class="product-name"><a href="product-detail.html?id=${product.id}">${product.name}</a></h3>
+                            <div class="product-price">${formatPrice(product.price)}</div>
                             ${stockHtml}
+                            <div class="catalog-cart-controls">
+                                <input class="catalog-quantity" type="number" min="1" max="${stock || 1}" value="1" aria-label="Quantity for ${product.name}" ${stock === 0 ? 'disabled' : ''}>
+                                <button class="catalog-add-to-cart" type="button" data-product-id="${product.id}" ${stock === 0 ? 'disabled' : ''}>Add to Cart</button>
+                            </div>
                             <a class="${viewClass}" href="${viewHref}">View Details</a>
                         </div>
                     </div>
                 `;
             }).join('');
             grid.innerHTML = html;
+            grid.querySelectorAll('.catalog-add-to-cart').forEach(button => {
+                button.addEventListener('click', () => addCatalogProduct(button));
+            });
+        }
+
+        function addCatalogProduct(button) {
+            const product = ALL_PRODUCTS.find(item => String(item.id) === String(button.dataset.productId));
+            const card = button.closest('.product-card');
+            const quantityInput = card.querySelector('.catalog-quantity');
+            const quantity = Math.max(1, Number(quantityInput.value) || 1);
+            if (!product || Number(product.stock_quantity ?? 100) === 0) return;
+
+            window.cart.addItem({
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image: product.image
+            }, quantity);
+            updateCatalogCartCount();
         }
 
         function applyCategoryFilter(){
@@ -186,5 +211,6 @@
             fetchProducts();
         });
     </script>
+    <script src="app.js"></script>
 </body>
 </html>

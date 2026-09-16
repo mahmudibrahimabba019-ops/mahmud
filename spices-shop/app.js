@@ -119,6 +119,7 @@ class Cart {
 
 // Initialize cart
 const cart = new Cart();
+window.cart = cart;
 const API_BASE = 'https://halari-backend.onrender.com';
 
 function productImageUrl(filename){
@@ -323,7 +324,7 @@ document.addEventListener('DOMContentLoaded', function() {
     cart.updateCartCount();
 
     // Render products if we're on the catalog page
-    if (document.getElementById('products-grid')) {
+    if (document.getElementById('products-grid') && !window.catalogOwnsRendering) {
         setupFilters();
 
         function applyActiveFilter() {
