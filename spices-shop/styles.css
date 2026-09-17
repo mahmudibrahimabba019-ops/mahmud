@@ -500,8 +500,8 @@ a:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: #000;
-    color: var(--white);
+    background: #fff;
+    color: #000;
     height: 40px; /* compact button height */
     padding: 0 12px; /* horizontal padding only */
     border-radius: var(--radius-md);
@@ -515,7 +515,8 @@ a:hover {
 }
 .view-details-btn:hover,
 .btn-view:hover {
-    background: #000;
+    background: #fff;
+    color: #000;
     transform: translateY(-2px);
     box-shadow: var(--shadow-sm);
 }
