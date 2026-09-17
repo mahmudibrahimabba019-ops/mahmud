@@ -2002,9 +2002,14 @@ section { padding-top: var(--spacing-xl); padding-bottom: var(--spacing-xl); }
 }
 
 @media (max-width: 480px) {
+    .catalog {
+        padding-left: 3px;
+        padding-right: 3px;
+    }
+
     .catalog .container {
-        padding-left: 8px;
-        padding-right: 8px;
+        padding-left: 3px;
+        padding-right: 3px;
     }
 
     .nav-container {
@@ -3377,6 +3382,11 @@ section { padding-top: var(--spacing-xl); padding-bottom: var(--spacing-xl); }
 }
 
 @media (max-width: 480px) {
+    .catalog {
+        padding-left: 3px;
+        padding-right: 3px;
+    }
+
     .nav-container {
         flex-direction: column;
         gap: var(--spacing-sm);
