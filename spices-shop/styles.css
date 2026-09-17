@@ -528,8 +528,6 @@ button,
 .btn-secondary,
 .btn-full,
 .add-to-cart-btn,
-.view-details-btn,
-.btn-view,
 .remove-btn,
 .quantity-btn,
 .btn-instagram {
@@ -538,7 +536,7 @@ button,
 
 /* (Removed broad global button override - filter buttons are handled specifically below) */
 
-a.btn-view:visited, a.view-details-btn:visited, a.btn-primary:visited {
+a.btn-primary:visited {
     color: var(--white) !important;
 }
 
