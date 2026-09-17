@@ -500,7 +500,7 @@ a:hover {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--primary);
+    background: #000;
     color: var(--white);
     height: 40px; /* compact button height */
     padding: 0 12px; /* horizontal padding only */
@@ -515,7 +515,7 @@ a:hover {
 }
 .view-details-btn:hover,
 .btn-view:hover {
-    background: var(--primary-dark);
+    background: #000;
     transform: translateY(-2px);
     box-shadow: var(--shadow-sm);
 }
