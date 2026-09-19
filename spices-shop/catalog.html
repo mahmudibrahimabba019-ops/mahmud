@@ -140,7 +140,7 @@
                     <div class="product-card" data-id="${product.id}" data-category="${product.category}">
                         <div class="product-image">
                             <a href="product-detail.html?id=${product.id}" aria-label="View ${product.name}">
-                                ${product.image ? `<img src="${product.image}" alt="${product.name}" onerror="this.style.display='none'; this.parentElement.innerHTML='🌶️';">` : '🌶️'}
+                                ${product.image ? `<img src="${API_URL.replace(/\/products$/, '')}/images/${encodeURIComponent(product.image)}" alt="${product.name}" onerror="this.style.display='none'; this.parentElement.innerHTML='🌶️';">` : '🌶️'}
                             </a>
                         </div>
                         <div class="product-info">
