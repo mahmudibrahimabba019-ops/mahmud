@@ -723,6 +723,27 @@ def admin_home(token: str = Depends(verify_admin_token)):
     }
 
 
+def admin_customer_display_name(order, customer=None):
+    delivery_name_parts = [
+        str(value).strip()
+        for value in (order.delivery_first_name, order.delivery_last_name)
+        if value and str(value).strip()
+    ]
+    if delivery_name_parts:
+        return " ".join(delivery_name_parts)
+
+    customer_name_parts = [
+        str(value).strip()
+        for value in (getattr(customer, "first_name", None), getattr(customer, "last_name", None))
+        if value and str(value).strip()
+    ]
+    if customer_name_parts:
+        return " ".join(customer_name_parts)
+
+    delivery_name = " ".join(str(order.delivery_name or "").split())
+    return delivery_name or "Unknown"
+
+
 @app.get("/admin/summary")
 def admin_summary(db: Session = Depends(get_db), token: str = Depends(verify_admin_token)):
     """
@@ -760,7 +781,7 @@ def admin_summary(db: Session = Depends(get_db), token: str = Depends(verify_adm
             models.Customer.id == order.customer_id
         ).first()
         
-        customer_name = f"{customer.first_name} {customer.last_name}" if customer else "Unknown"
+        customer_name = admin_customer_display_name(order, customer)
         
         recent_orders_list.append({
             "order_number": order.order_number,
@@ -914,11 +935,7 @@ def admin_get_all_orders(
             models.Customer.id == order.customer_id
         ).first()
         
-        customer_name = (
-            order.delivery_name
-            or (f"{customer.first_name} {customer.last_name}".strip()
-                if customer else "Unknown")
-        )
+        customer_name = admin_customer_display_name(order, customer)
         customer_phone = customer.phone if customer else "Unknown"
         
         orders_list.append({
@@ -968,19 +985,13 @@ def admin_get_order_details(order_id: int, db: Session = Depends(get_db), token:
             "subtotal": item.subtotal
         })
     
-    name = (
-        order.delivery_name
-        or (f"{customer.first_name} {customer.last_name}".strip()
-            if customer else "Unknown")
-    )
-
     return {
         "order_number": order.order_number,
         "created_at": order.created_at.isoformat() + "Z",
         "customer": {
             "first_name": order.delivery_first_name or "",
             "last_name": order.delivery_last_name or "",
-            "name": order.delivery_name or "Unknown",
+            "name": admin_customer_display_name(order, customer),
             "email": order.delivery_email or (customer.email if customer else "Unknown"),
             "phone": order.delivery_phone or (customer.phone if customer else "Unknown"),
         },
