@@ -1436,21 +1436,21 @@ Thank you for shopping with Halari House of Seasoning!
         print(f"[EMAIL] Failed to send order confirmation: {exc}")
 
 
-def fulfill_order(db: Session, order, paystack_amount_kobo: int, paystack_response: dict = None):
+def fulfill_order(db: Session, order, requested_amount_kobo: int, paystack_response: dict = None):
     """Fulfill an order after Paystack verification."""
     if order.payment_status == "paid":
         print(f"[INFO] Order {order.order_number} is already paid. Skipping processing.")
         return paystack_response or {"status": "already_paid"}
 
     order_amount_naira = order.total_amount
-    order_amount_kobo = round(order_amount_naira * 100)
+    order_amount_kobo = int(order_amount_naira * 100)
 
-    if paystack_amount_kobo != order_amount_kobo:
-        print(f"[ERROR] Amount mismatch! Paystack: {paystack_amount_kobo} kobo (₦{paystack_amount_kobo/100}), Order: {order_amount_kobo} kobo (₦{order_amount_naira})")
+    if requested_amount_kobo != order_amount_kobo:
+        print(f"[ERROR] Requested amount mismatch! Paystack requested amount: {requested_amount_kobo} kobo (₦{requested_amount_kobo/100}), Order: {order_amount_kobo} kobo (₦{order_amount_naira})")
         order.payment_status = "failed"
         db.add(order)
         db.commit()
-        raise HTTPException(status_code=400, detail=f"Amount mismatch. Paid: ₦{paystack_amount_kobo/100}, Expected: ₦{order_amount_naira}")
+        raise HTTPException(status_code=400, detail=f"Requested amount mismatch. Requested: ₦{requested_amount_kobo/100}, Expected: ₦{order_amount_naira}")
 
     try:
         # Update order status
@@ -1580,14 +1580,24 @@ async def verify_payment(request: Request, reference: str, db: Session = Depends
         if not status or status.lower() != 'success':
             return data
 
+        transaction_data = data.get('data', {})
+        if transaction_data.get('reference') != reference:
+            raise HTTPException(status_code=400, detail="Payment reference mismatch")
+
+        requested_amount_kobo = transaction_data.get('requested_amount')
+        if isinstance(requested_amount_kobo, bool) or not isinstance(requested_amount_kobo, int):
+            raise HTTPException(status_code=400, detail="Invalid or missing requested payment amount")
+
         order = db.query(models.Order).filter(models.Order.payment_reference == reference).first()
 
         if not order:
             print(f"[ERROR] Order not found for payment reference: {reference}")
             raise HTTPException(status_code=404, detail="Order not found for this payment reference")
 
-        paystack_amount_kobo = data.get('data', {}).get('amount', 0)
-        fulfill_order(db, order, paystack_amount_kobo, data)
+        if order.payment_reference != transaction_data.get('reference'):
+            raise HTTPException(status_code=400, detail="Payment reference does not match order reference")
+
+        fulfill_order(db, order, requested_amount_kobo, data)
         return data
 
 
@@ -1621,19 +1631,29 @@ async def paystack_webhook(request: Request, background_tasks: BackgroundTasks, 
 
     data = payload.get("data", {})
     reference = data.get("reference")
-    amount_kobo = data.get("amount")
+    status = data.get("status")
+
+    if not isinstance(status, str) or status.lower() != "success":
+        raise HTTPException(status_code=400, detail="Paystack transaction was not successful")
 
     if not reference:
         print("[WEBHOOK ALERT] charge.success webhook missing reference")
         return {"received": True}
+
+    requested_amount_kobo = data.get("requested_amount")
+    if isinstance(requested_amount_kobo, bool) or not isinstance(requested_amount_kobo, int):
+        raise HTTPException(status_code=400, detail="Invalid or missing requested payment amount")
 
     order = db.query(models.Order).filter(models.Order.payment_reference == reference).first()
     if not order:
         print(f"[WEBHOOK ALERT] No matching order for paid reference: {reference}")
         return {"received": True}
 
+    if order.payment_reference != reference:
+        raise HTTPException(status_code=400, detail="Payment reference does not match order reference")
+
     try:
-        fulfill_order(db, order, amount_kobo, payload)
+        fulfill_order(db, order, requested_amount_kobo, payload)
     except HTTPException as exc:
         print(f"[WEBHOOK ALERT] fulfill_order rejected reference {reference}: {exc.detail}")
     return {"received": True}
