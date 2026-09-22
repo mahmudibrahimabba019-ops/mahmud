@@ -727,8 +727,8 @@
         }
 
         const subtotal = orderData.subtotal || 0;
-        const deliveryFee = orderData.delivery_fee || 3000;
-        const total = orderData.total || (subtotal + deliveryFee);
+        const deliveryFee = orderData.delivery_fee ?? 0;
+        const total = orderData.total ?? (subtotal + deliveryFee);
         const isPickup = orderData.delivery_method === 'pickup';
 
         // Success box HTML
@@ -744,9 +744,10 @@
                 <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid #F5E6D3;margin-top:8px">
                     <div>Subtotal</div><div>₦${Number(subtotal).toLocaleString()}</div>
                 </div>
+                ${!isPickup ? `
                 <div style="display:flex;justify-content:space-between;padding-top:8px">
                     <div>Delivery Fee</div><div>₦${Number(deliveryFee).toLocaleString()}</div>
-                </div>
+                </div>` : ''}
                 <div style="display:flex;justify-content:space-between;padding-top:10px;border-top:2px solid #4A2C1A;margin-top:10px;font-weight:700">
                     <div>Total Paid</div><div>₦${Number(total).toLocaleString()}</div>
                 </div>
