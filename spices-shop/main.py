@@ -1199,7 +1199,7 @@ def send_order_confirmation_email(customer_email: str, order_data: dict):
     try:
         subject = (
             f"Order Confirmation #{order_data.get('order_number', '')} "
-            "- Halari House of Seasoning"
+            "- Halari House of Seasonings"
         )
 
         plain_text = f"""
@@ -1246,7 +1246,7 @@ TOTAL PAID: {total_str}
 {address_text}
 
 We will begin processing your order shortly.
-Thank you for shopping with Halari House of Seasoning!
+Thank you for shopping with Halari House of Seasonings!
 """
 
         items_html = ""
@@ -1258,7 +1258,7 @@ Thank you for shopping with Halari House of Seasoning!
                 price_str = f"₦{int(price):,}"
             except Exception:
                 price_str = f"₦{price}"
-            row_bg = "#ffffff" if order_data.get('items', []).index(item) % 2 == 0 else "#F5E6D3"
+            row_bg = "#FFFFFF" if order_data.get('items', []).index(item) % 2 == 0 else "#F5E6D3"
             items_html += f"""
                 <tr style="background-color:{row_bg};">
                   <td style="padding:10px 14px; color:#333;
@@ -1286,7 +1286,7 @@ Thank you for shopping with Halari House of Seasoning!
     <tr>
       <td align="center">
         <table width="600" cellpadding="0" cellspacing="0"
-               style="background-color:#ffffff; border-radius:12px;
+               style="background-color:#FFFFFF; border-radius:12px;
                       overflow:hidden;
                       box-shadow: 0 4px 12px rgba(0,0,0,0.1);">
 
@@ -1295,10 +1295,10 @@ Thank you for shopping with Halari House of Seasoning!
             <td style="background-color:#4A2C1A;
                        padding: 40px 30px; text-align: center;">
               <h1 style="color:#F5E6D3; margin:0; font-size:28px;
-                         letter-spacing:2px;">🌶️ HALARI</h1>
+                         letter-spacing:2px;">HALARI</h1>
               <p style="color:#F5E6D3; margin:8px 0 0 0; font-size:14px;
                         letter-spacing:1px; opacity:0.85;">
-                HOUSE OF SEASONING
+                HOUSE OF SEASONINGS
               </p>
             </td>
           </tr>
@@ -1411,7 +1411,7 @@ Thank you for shopping with Halari House of Seasoning!
                        border-top: 2px solid #4A2C1A;">
               <p style="color:#4A2C1A; font-size:14px; margin:0 0 8px 0;
                         font-weight:bold;">
-                🌶️ Halari House of Seasoning
+                Halari House of Seasonings
               </p>
               <p style="color:#4A2C1A; font-size:12px; margin:0;
                         opacity:0.7;">

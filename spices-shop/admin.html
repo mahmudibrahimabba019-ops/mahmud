@@ -20,7 +20,7 @@
         .login-container {
             max-width: 400px;
             margin: 100px auto;
-            background: white;
+            background: #FFFFFF;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
@@ -29,7 +29,7 @@
         .dashboard {
             max-width: 1200px;
             margin: 20px auto;
-            background: white;
+            background: #FFFFFF;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 0 20px rgba(0,0,0,0.1);
@@ -59,7 +59,7 @@
         
         button {
             background-color: #4A2C1A;
-            color: white;
+            color: #FFFFFF;
             border: none;
             cursor: pointer;
             font-weight: bold;
@@ -89,7 +89,7 @@
         
         .nav-tab.active {
             background: #4A2C1A;
-            color: white;
+            color: #FFFFFF;
         }
         
         .tab-content {
@@ -134,7 +134,7 @@
         
         th {
             background: #4A2C1A;
-            color: white;
+            color: #FFFFFF;
             padding: 12px;
             text-align: left;
         }
@@ -776,7 +776,7 @@
                         </select>
                         
                         <button onclick="updateOrderStatus(${order.order_id})">Update Status</button>
-                        <button id="refundBtn" onclick="processRefund(${order.order_id})" data-order-number="${details.order_number}" data-total-amount="${details.total_amount}" style="display: ${details.payment_status === 'paid' ? 'inline-block' : 'none'}; background-color: #dc3545; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-left: 10px;">Process Refund</button>
+                        <button id="refundBtn" onclick="processRefund(${order.order_id})" data-order-number="${details.order_number}" data-total-amount="${details.total_amount}" style="display: ${details.payment_status === 'paid' ? 'inline-block' : 'none'}; background-color: #dc3545; color: #FFFFFF; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-left: 10px;">Process Refund</button>
                     </div>
                 `;
                 
